@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SurveyJS 功能清單 — 問卷系統</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "PingFang TC",
+          "Microsoft JhengHei", sans-serif;
+        line-height: 1.7;
+        color: #1f2937;
+        background: #f9fafb;
+        padding: 40px 20px;
+      }
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+      }
+      header {
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: white;
+        padding: 32px 28px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+      }
+      h1 {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+      header p {
+        opacity: 0.9;
+        font-size: 14px;
+      }
+      section {
+        background: white;
+        border-radius: 12px;
+        padding: 24px 28px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+      h2 {
+        font-size: 20px;
+        color: #4338ca;
+        border-bottom: 2px solid #e0e7ff;
+        padding-bottom: 8px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      h3 {
+        font-size: 16px;
+        color: #1f2937;
+        margin-top: 16px;
+        margin-bottom: 8px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      th,
+      td {
+        border: 1px solid #e5e7eb;
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #f3f4f6;
+        font-weight: 600;
+        color: #374151;
+      }
+      tr:nth-child(even) td {
+        background: #fafbfc;
+      }
+      code {
+        background: #f1f5f9;
+        color: #db2777;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "SF Mono", Consolas, monospace;
+        font-size: 13px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        margin-right: 4px;
+      }
+      .badge-supported {
+        background: #dcfce7;
+        color: #15803d;
+      }
+      .badge-info {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+      .badge-warning {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      ul {
+        margin-left: 20px;
+        margin-top: 8px;
+      }
+      li {
+        margin-bottom: 4px;
+      }
+      .note {
+        background: #fffbeb;
+        border-left: 4px solid #f59e0b;
+        padding: 12px 16px;
+        border-radius: 4px;
+        margin-top: 12px;
+        font-size: 14px;
+        color: #78350f;
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .summary-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 14px;
+      }
+      .summary-card .label {
+        color: #64748b;
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      .summary-card .value {
+        color: #1e293b;
+        font-weight: 600;
+        font-size: 18px;
+      }
+
+      /* 統計分析示意圖樣式 */
+      .mockup-wrapper {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 12px;
+      }
+      .mockup-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .mockup-card {
+        background: #f3f4f6;
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+      }
+      .mockup-card:last-child {
+        margin-bottom: 0;
+      }
+      .mockup-q-header {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 2px;
+      }
+      .mockup-q-title {
+        font-size: 15px;
+        font-weight: 500;
+        color: #111827;
+      }
+      .mockup-q-type {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .mockup-q-count {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 8px;
+      }
+      .mockup-option-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0;
+        gap: 12px;
+      }
+      .mockup-option-label {
+        font-size: 14px;
+        color: #374151;
+        flex-shrink: 0;
+        min-width: 80px;
+      }
+      .mockup-option-value {
+        font-size: 13px;
+        font-weight: 500;
+        color: #4f46e5;
+        white-space: nowrap;
+        min-width: 110px;
+        text-align: right;
+      }
+      .mockup-text-row {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: #374151;
+        margin-bottom: 6px;
+      }
+      .mockup-text-row:last-child {
+        margin-bottom: 0;
+      }
+      .mockup-rating-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 6px;
+      }
+      .mockup-rating-cell {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 10px;
+        text-align: center;
+      }
+      .mockup-rating-label {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 4px;
+      }
+      .mockup-rating-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: #4f46e5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>📋 SurveyJS 功能清單</h1>
+        <p>
+          問卷系統目前使用的 SurveyJS Creator
+          功能盤點（題目類型、編輯器設定、統計分析）
+        </p>
+      </header>
+
+      <!-- <section>
+      <h2>📦 使用套件</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>套件名稱</th>
+            <th>版本</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>survey-core</code></td>
+            <td>^2.5.17</td>
+            <td>SurveyJS 核心引擎，提供 <code>Model</code> 與資料處理</td>
+          </tr>
+          <tr>
+            <td><code>survey-creator-core</code></td>
+            <td>^2.5.17</td>
+            <td>問卷編輯器核心邏輯（拖曳建立題目、選項設定）</td>
+          </tr>
+          <tr>
+            <td><code>survey-creator-react</code></td>
+            <td>^2.5.16</td>
+            <td>React 版的 Survey Creator 元件</td>
+          </tr>
+          <tr>
+            <td><code>survey-react-ui</code></td>
+            <td>^2.5.17</td>
+            <td>問卷渲染 UI（預覽、填寫、詳情）</td>
+          </tr>
+        </tbody>
+      </table>
+    </section> -->
+
+      <section>
+        <h2>📝 支援的題目／答覆類型</h2>
+        <p style="font-size: 14px; color: #64748b; margin-bottom: 8px">
+          統計分析模組目前識別並支援以下題型
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>顯示名稱</th>
+              <th>SurveyJS 類型</th>
+              <th>說明</th>
+              <th>統計支援</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>單選題</strong></td>
+              <td><code>radiogroup</code></td>
+              <td>從多個選項中選擇一個（單選按鈕）</td>
+              <td><span class="badge badge-supported">✓ 支援</span></td>
+            </tr>
+            <tr>
+              <td><strong>下拉選單</strong></td>
+              <td><code>dropdown</code></td>
+              <td>下拉式選單（單選），歸類為單選題統計</td>
+              <td><span class="badge badge-supported">✓ 支援</span></td>
+            </tr>
+            <tr>
+              <td><strong>是／否題</strong></td>
+              <td><code>boolean</code></td>
+              <td>布林開關，歸類為單選題統計（自動轉為「是／否」）</td>
+              <td><span class="badge badge-supported">✓ 支援</span></td>
+            </tr>
+            <tr>
+              <td><strong>多選題</strong></td>
+              <td><code>checkbox</code></td>
+              <td>可勾選多個選項</td>
+              <td><span class="badge badge-supported">✓ 支援</span></td>
+            </tr>
+            <tr>
+              <td><strong>單行文字</strong></td>
+              <td><code>text</code></td>
+              <td>單行輸入框</td>
+              <td><span class="badge badge-supported">✓ 支援</span></td>
+            </tr>
+            <tr>
+              <td><strong>多行文字</strong></td>
+              <td><code>comment</code></td>
+              <td>多行文字輸入區（含長段文字）</td>
+              <td><span class="badge badge-supported">✓ 支援</span></td>
+            </tr>
+            <tr>
+              <td><strong>評分題</strong></td>
+              <td><code>rating</code></td>
+              <td>數字評分（如 1-5 星、1-10 分）</td>
+              <td><span class="badge badge-supported">✓ 支援</span></td>
+            </tr>
+            <tr>
+              <td><strong>其他題型</strong></td>
+              <td>
+                <code>matrix</code
+                >、<code>file</code>、<code>imagepicker</code>… 等
+              </td>
+              <td>SurveyJS 內建仍可使用，但統計分析僅顯示「回答數量」</td>
+              <td><span class="badge badge-warning">部分支援(需實作)</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note">
+          💡 上述題型由 SurveyJS Creator
+          工具箱（toolbox）預設提供。若需限制使用者僅能新增上述題型，可透過
+          Creator 的 toolbox 客製化進一步收斂。
+        </div>
+      </section>
+
+      <section>
+        <h2>🛠️ Survey Creator 其他內建功能</h2>
+        <p style="font-size: 14px; color: #64748b; margin-bottom: 8px">
+          以下為 SurveyJS Creator
+          套件預設啟用的功能,使用者建立問卷時即可使用,無需額外開發。
+        </p>
+
+        <h3>編輯器分頁 (Tabs)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>分頁</th>
+              <th>狀態</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>設計 Designer</strong></td>
+              <td><span class="badge badge-supported">✓ 啟用</span></td>
+              <td>主要編輯介面,可從工具箱拖曳題目、調整順序、設定屬性</td>
+            </tr>
+            <tr>
+              <td><strong>預覽 Preview</strong></td>
+              <td><span class="badge badge-supported">✓ 啟用</span></td>
+              <td>直接在編輯器內預覽問卷外觀與操作流程</td>
+            </tr>
+            <tr>
+              <td><strong>邏輯 Logic</strong></td>
+              <td><span class="badge badge-supported">✓ 啟用</span></td>
+              <td>
+                以圖形化方式管理條件規則(顯示/隱藏題目、必填條件、計算欄位)
+              </td>
+            </tr>
+            <tr>
+              <td><strong>翻譯 Translation</strong></td>
+              <td><span class="badge badge-supported">✓ 啟用</span></td>
+              <td>多語系翻譯介面,可為每題輸入不同語言版本</td>
+            </tr>
+            <tr>
+              <td><strong>主題 Themes</strong></td>
+              <td><span class="badge badge-supported">✓ 啟用</span></td>
+              <td>調整問卷外觀(色彩、字型、圓角、陰影等視覺樣式)</td>
+            </tr>
+            <tr>
+              <td><strong>JSON 編輯</strong></td>
+              <td><span class="badge badge-warning">✗ 已關閉</span></td>
+              <td>原始 JSON 編輯分頁,本系統刻意隱藏避免使用者直接編輯資料</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin-top: 20px">題目編輯功能</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>功能</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>工具箱 Toolbox</strong></td>
+              <td>左側拖曳區,可將題型拖入編輯區或點擊新增</td>
+            </tr>
+            <tr>
+              <td><strong>屬性面板 Property Grid</strong></td>
+              <td>
+                右側面板,可細部調整每題的設定:標題、名稱、必填、預設值、版面寬度等
+              </td>
+            </tr>
+            <tr>
+              <td><strong>多頁問卷 Pages</strong></td>
+              <td>可建立多頁問卷,題目可分組於不同頁面,填寫時逐頁顯示</td>
+            </tr>
+            <tr>
+              <td><strong>題目群組 Panel</strong></td>
+              <td>可將題目聚合成 Panel(子區塊),支援巢狀結構</td>
+            </tr>
+            <tr>
+              <td><strong>動態題目 PanelDynamic</strong></td>
+              <td>讓使用者自行新增多筆相同結構的資料(如多位家屬資料)</td>
+            </tr>
+            <tr>
+              <td><strong>複製/刪除題目</strong></td>
+              <td>每題右上選單可複製、刪除題目</td>
+            </tr>
+            <tr>
+              <td><strong>拖曳排序</strong></td>
+              <td>支援題目、頁面、選項皆可拖曳排序</td>
+            </tr>
+            <tr>
+              <td><strong>撤銷 / 重做 Undo/Redo</strong></td>
+              <td>編輯動作可復原(Ctrl/Cmd + Z)與重做</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin-top: 20px">驗證與條件邏輯</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>功能</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>必填驗證</strong></td>
+              <td>可設定 <code>isRequired</code>,未填時無法送出</td>
+            </tr>
+            <tr>
+              <td><strong>內建驗證器</strong></td>
+              <td>
+                數字範圍、文字長度、Email 格式、Regex
+                正規表示式、答案唯一等驗證規則
+              </td>
+            </tr>
+            <tr>
+              <td><strong>顯示條件 visibleIf</strong></td>
+              <td>依其他題目答案決定本題是否顯示(分支邏輯)</td>
+            </tr>
+            <tr>
+              <td><strong>啟用條件 enableIf</strong></td>
+              <td>依條件控制題目是否可作答(唯讀切換)</td>
+            </tr>
+            <tr>
+              <td><strong>必填條件 requiredIf</strong></td>
+              <td>依條件決定是否變為必填</td>
+            </tr>
+            <tr>
+              <td><strong>計算欄位 Calculated Values</strong></td>
+              <td>可用 SurveyJS 表達式即時計算,例如 BMI、總分等衍生欄位</td>
+            </tr>
+            <tr>
+              <td><strong>觸發器 Triggers</strong></td>
+              <td>
+                依條件自動執行動作(設定值、複製值、跳頁、完成問卷、執行 JS)
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin-top: 20px">本系統已使用的 Creator 屬性設定</h3>
+        <!-- <p style="font-size: 14px; color: #64748b; margin-bottom: 8px">
+          位於 <code>apps/web/src/components/SurveyCreatorWidget.tsx</code>
+        </p> -->
+        <table>
+          <thead>
+            <tr>
+              <th>設定項</th>
+              <th>值</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>autoSaveEnabled</code></td>
+              <td><span class="badge badge-supported">true</span></td>
+              <td>編輯時自動儲存(不需手動點選儲存按鈕)</td>
+            </tr>
+            <tr>
+              <td><code>collapseOnDrag</code></td>
+              <td><span class="badge badge-supported">true</span></td>
+              <td>拖曳題目時自動收合,使編輯區更整潔</td>
+            </tr>
+            <tr>
+              <td><code>showJSONEditorTab</code></td>
+              <td><span class="badge badge-warning">false</span></td>
+              <td>隱藏 JSON 編輯分頁,避免使用者直接修改原始資料</td>
+            </tr>
+            <tr>
+              <td><code>locale</code></td>
+              <td><span class="badge badge-info">zh-tw</span></td>
+              <td>編輯器與問卷介面皆為繁體中文</td>
+            </tr>
+            <tr>
+              <td><code>themeForPreview</code></td>
+              <td><span class="badge badge-info">defaultV2</span></td>
+              <td>預覽分頁使用 SurveyJS V2 主題</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note">
+          💡 上述「編輯器分頁」與「題目編輯功能」皆為 Creator
+          預設行為,可依需求透過 <code>ICreatorOptions</code> 關閉或客製化,例如:
+          <ul style="margin-top: 6px">
+            <li><code>showLogicTab: false</code> 隱藏邏輯分頁</li>
+            <li><code>showTranslationTab: false</code> 隱藏翻譯分頁</li>
+            <li><code>showThemeTab: false</code> 隱藏主題分頁</li>
+            <li><code>questionTypes: [...]</code> 限制工具箱可用題型</li>
+          </ul>
+        </div>
+      </section>
+
+      <section>
+        <h2>📈 統計分析功能</h2>
+        <p style="font-size: 14px; color: #64748b; margin-bottom: 8px">
+          位於「查看回覆 → 統計分析」分頁
+        </p>
+
+        <h3>目前問卷系統已經設計的題型統計輸出</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>題型</th>
+              <th>統計內容</th>
+              <th>呈現方式</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>單選題 / 下拉 / 是否</td>
+              <td>每個選項的<strong>人數</strong>與<strong>百分比</strong></td>
+              <td>選項依問卷原順序排列，顯示 <code>N 人 (XX.X%)</code></td>
+            </tr>
+            <tr>
+              <td>多選題</td>
+              <td>
+                每個被選擇的選項<strong>人數</strong>與<strong>百分比</strong>
+              </td>
+              <td>依人數由高到低排序，未被選擇的選項不顯示</td>
+            </tr>
+            <tr>
+              <td>文字題（單行／多行）</td>
+              <td>所有<strong>去重後</strong>的回答</td>
+              <td>列出每一段獨特文字回應</td>
+            </tr>
+            <tr>
+              <td>評分題</td>
+              <td>
+                <strong>平均分</strong>、<strong>最高分</strong>、<strong
+                  >最低分</strong
+                >
+              </td>
+              <td>平均分取小數點後一位，無回應時顯示「尚無評分」</td>
+            </tr>
+            <tr>
+              <td>其他題型</td>
+              <td>僅顯示<strong>回答數量</strong></td>
+              <td>純計數，不分析內容</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 style="margin-top: 20px">統計分析畫面示意圖</h3>
+        <div class="mockup-wrapper">
+          <div class="mockup-title">📈 數據統計摘要</div>
+
+          <!-- 單選題示意 -->
+          <div class="mockup-card">
+            <div class="mockup-q-header">
+              <span class="mockup-q-title">您的性別？</span>
+              <span class="mockup-q-type">(單選題)</span>
+            </div>
+            <div class="mockup-q-count">回答數：120</div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">男</span>
+              <span class="mockup-option-value">54 人 (45.0%)</span>
+            </div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">女</span>
+              <span class="mockup-option-value">60 人 (50.0%)</span>
+            </div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">不願透露</span>
+              <span class="mockup-option-value">6 人 (5.0%)</span>
+            </div>
+          </div>
+
+          <!-- 多選題示意 -->
+          <div class="mockup-card">
+            <div class="mockup-q-header">
+              <span class="mockup-q-title">您平常使用哪些社群平台？</span>
+              <span class="mockup-q-type">(多選題)</span>
+            </div>
+            <div class="mockup-q-count">回答數：100</div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">Line</span>
+              <span class="mockup-option-value">92 人 (92.0%)</span>
+            </div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">Facebook</span>
+              <span class="mockup-option-value">75 人 (75.0%)</span>
+            </div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">Instagram</span>
+              <span class="mockup-option-value">60 人 (60.0%)</span>
+            </div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">Threads</span>
+              <span class="mockup-option-value">32 人 (32.0%)</span>
+            </div>
+            <p
+              style="
+                font-size: 12px;
+                color: #92400e;
+                margin-top: 8px;
+                font-style: italic;
+              "
+            >
+              ※ 依人數由多到少排序，未被選擇的選項不顯示
+            </p>
+          </div>
+
+          <!-- 文字題示意 -->
+          <div class="mockup-card">
+            <div class="mockup-q-header">
+              <span class="mockup-q-title">您對本次服務的建議？</span>
+              <span class="mockup-q-type">(文字題)</span>
+            </div>
+            <div class="mockup-q-count">回答數：4</div>
+            <div class="mockup-text-row">服務態度很好,謝謝!</div>
+            <div class="mockup-text-row">等待時間略長,希望可以改善。</div>
+            <div class="mockup-text-row">空間舒適,環境整潔。</div>
+            <div class="mockup-text-row">希望提供更多時段選擇。</div>
+            <p
+              style="
+                font-size: 12px;
+                color: #92400e;
+                margin-top: 8px;
+                font-style: italic;
+              "
+            >
+              ※ 列出所有去重後的獨特回答
+            </p>
+          </div>
+
+          <!-- 評分題示意 -->
+          <div class="mockup-card">
+            <div class="mockup-q-header">
+              <span class="mockup-q-title">請為本次服務評分（1-5分）</span>
+              <span class="mockup-q-type">(評分題)</span>
+            </div>
+            <div class="mockup-q-count">回答數：120</div>
+            <div class="mockup-rating-grid">
+              <div class="mockup-rating-cell">
+                <div class="mockup-rating-label">平均分</div>
+                <div class="mockup-rating-value">4.3</div>
+              </div>
+              <div class="mockup-rating-cell">
+                <div class="mockup-rating-label">最高分</div>
+                <div class="mockup-rating-value">5</div>
+              </div>
+              <div class="mockup-rating-cell">
+                <div class="mockup-rating-label">最低分</div>
+                <div class="mockup-rating-value">2</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 是否題示意 -->
+          <div class="mockup-card">
+            <div class="mockup-q-header">
+              <span class="mockup-q-title">是否願意推薦本服務？</span>
+              <span class="mockup-q-type">(單選題)</span>
+            </div>
+            <div class="mockup-q-count">回答數：120</div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">是</span>
+              <span class="mockup-option-value">106 人 (88.3%)</span>
+            </div>
+            <div class="mockup-option-row">
+              <span class="mockup-option-label">否</span>
+              <span class="mockup-option-value">14 人 (11.7%)</span>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="margin-top: 16px">
+          💡 上圖為目前實作的呈現方式:以文字與數值為主,每個選項以「N 人
+          (XX.X%)」呈現。
+        </div>
+
+        <h3 style="margin-top: 20px">每題統計卡片共通欄位</h3>
+        <ul>
+          <li>題目標題與題型標籤（例：「單選題」、「多選題」）</li>
+          <li>
+            回答數（有效回應數量，過濾掉 <code>undefined</code> /
+            <code>null</code> / 空字串）
+          </li>
+          <li>對應題型的統計結果（見上表）</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>🗂️ 問卷管理功能</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>功能</th>
+              <th>位置</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>新增問卷</strong></td>
+              <td>首頁 → 新增問卷按鈕</td>
+              <td>進入空白編輯器，自動儲存後建立紀錄</td>
+            </tr>
+            <tr>
+              <td><strong>編輯問卷</strong></td>
+              <td>問卷卡片 → 編輯問卷</td>
+              <td>使用 SurveyCreator 元件，編輯時自動儲存</td>
+            </tr>
+            <tr>
+              <td><strong>預覽問卷</strong></td>
+              <td>問卷卡片 → 預覽</td>
+              <td>新分頁開啟，唯讀模式檢視填寫畫面</td>
+            </tr>
+            <tr>
+              <td><strong>複製連結</strong></td>
+              <td>問卷卡片 → 複製連結</td>
+              <td>產生匿名填寫連結，並提示無法追蹤個案身份</td>
+            </tr>
+            <tr>
+              <td><strong>查看回覆</strong></td>
+              <td>問卷卡片 → 查看回覆</td>
+              <td>進入回覆清單與統計分析兩個分頁</td>
+            </tr>
+            <tr>
+              <td><strong>複製問卷副本</strong></td>
+              <td>問卷卡片右上選單</td>
+              <td>以對話框輸入新名稱後建立副本</td>
+            </tr>
+            <tr>
+              <td><strong>刪除問卷</strong></td>
+              <td>問卷卡片右上選單</td>
+              <td>以對話框二次確認後刪除</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>📨 回覆相關功能</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>功能</th>
+              <th>位置</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>問卷填寫</strong></td>
+              <td><code>SurveyFillPage</code></td>
+              <td>
+                使用 <code>survey-react-ui</code> 的
+                <code>&lt;Survey&gt;</code> 元件，完成時呼叫
+                <code>submitResponse</code>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>回覆清單</strong></td>
+              <td>查看回覆 → 回覆清單分頁</td>
+              <td>
+                表格顯示填寫時間、姓名、身分證字號；支援搜尋姓名與時間排序
+              </td>
+            </tr>
+            <tr>
+              <td><strong>回覆詳情</strong></td>
+              <td>清單列 → 查看詳情</td>
+              <td>
+                新分頁開啟，以
+                <code>mode: "display"</code> 唯讀顯示原問卷與填寫結果
+              </td>
+            </tr>
+            <tr>
+              <td><strong>統計分析</strong></td>
+              <td>查看回覆 → 統計分析分頁</td>
+              <td>逐題顯示統計摘要（見上方統計分析章節）</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- <section>
+        <h2>⚙️ Survey Creator 編輯器設定</h2>
+        <p style="font-size: 14px; color: #64748b; margin-bottom: 8px">
+          位於 <code>apps/web/src/components/SurveyCreatorWidget.tsx</code>
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>設定項</th>
+              <th>值</th>
+              <th>說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>autoSaveEnabled</code></td>
+              <td><span class="badge badge-supported">true</span></td>
+              <td>編輯時自動儲存（不需手動點選儲存按鈕）</td>
+            </tr>
+            <tr>
+              <td><code>collapseOnDrag</code></td>
+              <td><span class="badge badge-supported">true</span></td>
+              <td>拖曳題目時自動收合，使編輯區更整潔</td>
+            </tr>
+            <tr>
+              <td><code>showJSONEditorTab</code></td>
+              <td><span class="badge badge-warning">false</span></td>
+              <td>隱藏 JSON 編輯分頁，避免使用者直接修改原始資料</td>
+            </tr>
+            <tr>
+              <td><code>locale</code></td>
+              <td><span class="badge badge-info">zh-tw</span></td>
+              <td>編輯器與問卷介面皆為繁體中文</td>
+            </tr>
+            <tr>
+              <td><code>themeForPreview</code></td>
+              <td><span class="badge badge-info">defaultV2</span></td>
+              <td>預覽分頁使用 SurveyJS V2 主題</td>
+            </tr>
+          </tbody>
+        </table>
+      </section> -->
+
+      <!-- <section>
+        <h2>🔍 摘要</h2>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="label">支援的題型</div>
+            <div class="value">7 種主要</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">統計分類</div>
+            <div class="value">4 大類</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">介面語系</div>
+            <div class="value">繁體中文</div>
+          </div>
+          <div class="summary-card">
+            <div class="label">編輯器主題</div>
+            <div class="value">Default V2</div>
+          </div>
+        </div>
+      </section> -->
+    </div>
+  </body>
+</html>
