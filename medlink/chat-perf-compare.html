@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<title>Staging 部署前後對比 — chat list perf</title>
+<style>
+  :root {
+    --bg: #0b1020; --bg-card: #11182d; --bg-soft: #1a223d;
+    --text: #e8ebf5; --muted: #8a93b8; --line: #232a48;
+    --good: #34d399; --warn: #fbbf24; --bad: #f87171; --acc: #60a5fa;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: 0.2px; }
+  h2 { font-size: 16px; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 14px; margin: 18px 0 8px; color: var(--acc); font-weight: 600; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .pill.good { background: rgba(52,211,153,.15); color: var(--good); }
+  .pill.warn { background: rgba(251,191,36,.15); color: var(--warn); }
+  .pill.bad  { background: rgba(248,113,113,.18); color: var(--bad); }
+  .pill.neutral { background: rgba(138,147,184,.15); color: var(--muted); }
+  code { font-family: var(--mono); font-size: 12px; background: var(--bg-soft); padding: 1.5px 5px; border-radius: 4px; }
+  .callout { border-left: 3px solid var(--acc); padding: 10px 12px; background: rgba(96,165,250,.08); margin: 12px 0; border-radius: 0 8px 8px 0; }
+  .callout.bad  { border-color: var(--bad); background: rgba(248,113,113,.08); }
+  .callout.warn { border-color: var(--warn); background: rgba(251,191,36,.08); }
+  .callout.good { border-color: var(--good); background: rgba(52,211,153,.08); }
+
+  /* Visual before/after diff cards */
+  .diff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 12px 0 16px; }
+  .diff-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .diff-card { background: var(--bg-card); border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; padding: 12px 14px; }
+  .diff-card.good { border-left-color: var(--good); }
+  .diff-card.warn { border-left-color: var(--warn); }
+  .diff-card.bad  { border-left-color: var(--bad); }
+  .diff-card.neutral { border-left-color: var(--muted); }
+  .diff-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .diff-label { font-weight: 600; font-size: 13px; }
+  .diff-label-sub { color: var(--muted); font-size: 10px; font-weight: 400; margin-left: 4px; }
+  .diff-delta { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .diff-delta.good { color: var(--good); }
+  .diff-delta.warn { color: var(--warn); }
+  .diff-delta.bad  { color: var(--bad); }
+  .diff-delta.neutral { color: var(--muted); }
+  .diff-row { display: grid; grid-template-columns: 64px 1fr 90px; gap: 8px; align-items: center; font-size: 11px; margin: 3px 0; }
+  .diff-row-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .diff-track { background: var(--bg-soft); border-radius: 3px; height: 14px; overflow: hidden; }
+  .diff-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  .diff-fill.before { background: var(--muted); opacity: 0.5; }
+  .diff-fill.after-good { background: var(--good); }
+  .diff-fill.after-warn { background: var(--warn); }
+  .diff-fill.after-bad  { background: var(--bad); }
+  .diff-fill.after-neutral { background: var(--muted); }
+  .diff-val { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; text-align: right; color: var(--text); }
+  .diff-context { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+  .ready-track { position: relative; height: 38px; background: var(--bg-soft); border-radius: 6px; margin: 6px 0 18px; padding: 4px; }
+  .ready-marker { position: absolute; top: 4px; bottom: 4px; background: var(--acc); border-radius: 3px; }
+  .ready-marker.before { background: rgba(248,113,113,.55); }
+  .ready-marker.after  { background: rgba(52,211,153,.65); }
+  .ready-label { position: absolute; font-family: var(--mono); font-size: 10px; color: var(--text); top: 50%; transform: translateY(-50%); padding: 0 6px; }
+
+  ul { padding-left: 18px; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Staging 部署前後對比 — chat list perf</h1>
+    <div class="meta">
+      Target: <code>deepq-case-management-medlink.deepq.dev/admin/accounts</code> ·
+      Account: <code>lucy</code> ·
+      viewport 1802×831 · production build · 全 304 cache hit ·
+      Date: 2026-05-18
+    </div>
+    <div class="meta">
+      Commits deployed:
+      <code>dc91049a</code> perf(web): virtualize ChatList with react-window (#1) ·
+      <code>d05dfa5b</code> perf(web): drop getUnreadMessagesCount, switch to hasUnread boolean (#5)
+    </div>
+    <div class="meta">
+      Trace 檔：<code>chat-perf-trace-staging-before.json</code> vs <code>chat-perf-trace-staging-after.json</code>
+    </div>
+  </header>
+
+  <h2>1. TL;DR</h2>
+  <div class="card">
+    <p style="margin-top:0">
+      Production build 已部署 #1 + #5。<strong>主要 win 在 DOM / 記憶體 / chat list 真實 ready 時間</strong>；Web Vitals 因為部署前 staging 本來就已經是「Good」級距，所以變動小，部分時序指標還有 ~80ms 級別的 TTFB noise（無關代碼）。
+    </p>
+    <div class="diff-grid cols-3">
+      <div class="diff-card good">
+        <div class="diff-head"><div><span class="diff-label">DOM total</span></div><span class="diff-delta good">↓ 78%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">2,853</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:21.8%"></div></div><span class="diff-val"><strong>621</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head"><div><span class="diff-label">JS heap used</span></div><span class="diff-delta good">↓ 57%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">91.9 MB</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:43.5%"></div></div><span class="diff-val"><strong>40.0 MB</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head"><div><span class="diff-label">Chat list 完整 ready</span></div><span class="diff-delta good">↓ 18%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">11.9 s</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:82.1%"></div></div><span class="diff-val"><strong>9.77 s</strong></span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>2. 完整指標對比</h2>
+  <div class="card">
+
+    <h3>2.1 結構性指標（#1 directly addresses）</h3>
+    <div class="diff-grid cols-3">
+      <div class="diff-card good">
+        <div class="diff-head"><div><span class="diff-label">DOM total</span><span class="diff-label-sub">nodes</span></div><span class="diff-delta good">↓ 78%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">2,853</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:21.8%"></div></div><span class="diff-val"><strong>621</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head"><div><span class="diff-label">Chat rows in DOM</span></div><span class="diff-delta good">↓ 94%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">214</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:5.6%"></div></div><span class="diff-val"><strong>12</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head"><div><span class="diff-label">JS heap used</span></div><span class="diff-delta good">↓ 57%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">91.9 MB</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:43.5%"></div></div><span class="diff-val"><strong>40.0 MB</strong></span></div>
+      </div>
+    </div>
+
+    <h3>2.2 Chat list ready 時序（#5 directly addresses）</h3>
+    <div class="ready-track">
+      <div class="ready-marker before" style="left: 4%; width: 96%"></div>
+      <div class="ready-label" style="left: 100%; transform: translate(-100%, -50%); color: #fff">Before 11.93 s</div>
+    </div>
+    <div class="ready-track">
+      <div class="ready-marker after" style="left: 4%; width: 78%"></div>
+      <div class="ready-label" style="left: 82%; transform: translate(-100%, -50%); color: #052e16">After 9.77 s — ↓ 2.16 s</div>
+    </div>
+    <p class="meta">
+      Chat list「最後一個 batch 落地」時間，等於使用者看到全部訊息預覽 + 紅點的時刻。<br>
+      #5 拿掉每 conv 的 <code>getUnreadMessagesCount()</code> 並把 <code>getLastMessages(Math.max(10, unreadCount))</code> 縮成固定 10，每個 batch 的 Twilio SDK 處理變輕、subscribe loop 整體加速。
+    </p>
+
+    <table>
+      <tr><th>Call #</th><th>SIDs</th><th>Before — started @</th><th>After — started @</th><th>Δ</th></tr>
+      <tr><td class="num">1</td><td class="num">50</td><td class="num">4.54 s</td><td class="num">4.36 s</td><td class="num"><span class="pill good">−180 ms</span></td></tr>
+      <tr><td class="num">2</td><td class="num">50</td><td class="num">5.62 s</td><td class="num">5.22 s</td><td class="num"><span class="pill good">−405 ms</span></td></tr>
+      <tr><td class="num">3</td><td class="num">50</td><td class="num">6.77 s</td><td class="num">6.16 s</td><td class="num"><span class="pill good">−613 ms</span></td></tr>
+      <tr><td class="num">4</td><td class="num">50</td><td class="num">7.92 s</td><td class="num">7.03 s</td><td class="num"><span class="pill good">−894 ms</span></td></tr>
+      <tr><td class="num">5</td><td class="num">50</td><td class="num">9.28 s</td><td class="num">7.88 s</td><td class="num"><span class="pill good">−1,401 ms</span></td></tr>
+      <tr><td class="num">6</td><td class="num">50</td><td class="num">10.47 s</td><td class="num">8.72 s</td><td class="num"><span class="pill good">−1,755 ms</span></td></tr>
+      <tr><td class="num">7</td><td class="num">15</td><td class="num">11.81 s</td><td class="num">9.69 s</td><td class="num"><span class="pill good">−2,116 ms</span></td></tr>
+    </table>
+    <div class="callout good">
+      Subscribe loop 的累積加速：每 batch 提早一點點，到第 7 batch 已經提早 ~2.1 秒。對 1000-2000 個案場景線性外推，預計每 ~150 個 conv 就能省 ~1 秒。
+    </div>
+
+    <h3>2.3 Core Web Vitals（沒受 #1+#5 影響，主要是 staging 網路 noise）</h3>
+    <div class="diff-grid cols-3">
+      <div class="diff-card warn">
+        <div class="diff-head"><div><span class="diff-label">LCP</span><span class="diff-label-sub">banner heading</span></div><span class="diff-delta warn">↑ 20%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:83.6%"></div></div><span class="diff-val">536 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">641 ms</span></div>
+        <div class="diff-context">仍在「Good」級距（&lt;2.5s）。TTFB 從 19→99ms 解釋大部分差異 — staging 網路 jitter，非代碼造成</div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head"><div><span class="diff-label">FCP</span></div><span class="diff-delta warn">↑ 34%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:74.4%"></div></div><span class="diff-val">256 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">344 ms</span></div>
+        <div class="diff-context">仍在「Good」（&lt;1.8s）。TTFB 多 80ms 直接傳遞到 FCP</div>
+      </div>
+      <div class="diff-card neutral">
+        <div class="diff-head"><div><span class="diff-label">TTFB</span><span class="diff-label-sub">network noise</span></div><span class="diff-delta neutral">↑ 5×</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:19.2%"></div></div><span class="diff-val">19 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-neutral" style="width:100%"></div></div><span class="diff-val">99 ms</span></div>
+        <div class="diff-context">無關代碼的網路波動 — 解釋下游 LCP/FCP/DCL/Load 的 ~80ms 增加</div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head"><div><span class="diff-label">DOMContentLoaded</span></div><span class="diff-delta warn">↑ 47%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:68%"></div></div><span class="diff-val">187 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">275 ms</span></div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head"><div><span class="diff-label">Load event</span></div><span class="diff-delta warn">↑ 35%</span></div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:73.9%"></div></div><span class="diff-val">257 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">348 ms</span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head"><div><span class="diff-label">CLS / Long tasks</span></div><span class="diff-delta good">穩定</span></div>
+        <div class="diff-row"><span class="diff-row-label">CLS</span><div class="diff-track"><div class="diff-fill after-good" style="width:100%"></div></div><span class="diff-val">0 → 0</span></div>
+        <div class="diff-row"><span class="diff-row-label">Long</span><div class="diff-track"><div class="diff-fill after-good" style="width:100%"></div></div><span class="diff-val">0 → 0</span></div>
+        <div class="diff-context">無 layout shift 增加、無新 long task — 變動是 reasonable trade-off</div>
+      </div>
+    </div>
+
+    <h3>2.4 網路層（#1+#5 不動，待 #2/#3）</h3>
+    <table>
+      <tr><th>Metric</th><th>Before</th><th>After</th><th>狀態</th></tr>
+      <tr><td>Total resources</td><td class="num">32</td><td class="num">32</td><td><span class="pill neutral">no change</span></td></tr>
+      <tr><td><code>/api/chat/conversations</code> calls</td><td class="num">7</td><td class="num">7</td><td><span class="pill neutral">no change</span> — 待 #3 server-side 分頁</td></tr>
+      <tr><td>Total SIDs fetched</td><td class="num">315</td><td class="num">315</td><td><span class="pill neutral">no change</span></td></tr>
+      <tr><td>Total metadata transferred</td><td class="num">1,088 KB</td><td class="num">1,088 KB</td><td><span class="pill neutral">no change</span></td></tr>
+    </table>
+  </div>
+
+  <h2>3. 推到 2000 個案場景（線性外推）</h2>
+  <div class="card">
+    <table>
+      <tr><th>Metric</th><th>350 conv (lucy) before</th><th>350 conv (lucy) after</th><th>2000 conv 預估 (after)</th></tr>
+      <tr><td>DOM total</td><td class="num">2,853</td><td class="num">621</td><td class="num"><strong>~700</strong>（constant）</td></tr>
+      <tr><td>Chat rows in DOM</td><td class="num">214</td><td class="num">12</td><td class="num"><strong>~12</strong>（constant）</td></tr>
+      <tr><td>JS heap used</td><td class="num">91.9 MB</td><td class="num">40 MB</td><td class="num"><strong>~120 MB</strong>（受 conversationMap 線性）</td></tr>
+      <tr><td>/chat/conversations calls</td><td class="num">7</td><td class="num">7</td><td class="num">~40（線性，待 #3）</td></tr>
+      <tr><td>Chat list 完整 ready</td><td class="num">~11.9 s</td><td class="num">~9.77 s</td><td class="num">~55-60 s（線性，待 #2/#3）</td></tr>
+    </table>
+    <div class="callout">
+      #1+#5 把「能不能撐住 2000 conv」從「<strong>很可能崩</strong>（OOM 風險、26,000 DOM nodes）」變成「<strong>能撐住，但等很久</strong>（網路串行 ~1 分鐘）」。
+      要把 chat list ready 壓到 &lt;5s 需要：<strong>#2 lazy join</strong>（只 subscribe 視窗內 conv）+ <strong>#3 server-side 分頁</strong>（只抓視窗內 metadata）。
+    </div>
+  </div>
+
+  <h2>4. Trade-off &amp; 已知 UX 改變</h2>
+  <div class="card">
+    <ul>
+      <li><strong>未讀 badge 變紅點</strong>：個管師看不到精確未讀數字（5、12…），只看到「有 / 沒有」。如果想看精確數字仍可進到 chat room 內 message list 直接看。</li>
+      <li><strong>Tab 不再顯示未讀總數</strong>：「個案 12 / 醫事人員 4」變成「個案 ● / 醫事人員 ●」。個管同事如果原本依賴這個數字做排序判斷，需要溝通。</li>
+      <li><strong>大量未讀的 conv 延後抓訊息</strong>：超過 10 則的未讀訊息現在「進到 chat room 才會 fetch 進來」（之前是 app 啟動就全抓）。如果使用者習慣打開 app 就能看到所有歷史訊息，現在會在 chat room 首次 open 時稍有 lag。</li>
+      <li><strong>不可逆性低</strong>：所有變動都是純前端、無 DB schema 變動、無 API breakage — revert 任一 commit 即恢復。</li>
+    </ul>
+  </div>
+
+  <h2>5. Artifacts</h2>
+  <div class="card">
+    <ul>
+      <li><code>apps/chat-perf-trace-staging-before.json</code> — raw DevTools trace (before deploy)</li>
+      <li><code>apps/chat-perf-trace-staging-after.json</code> — raw DevTools trace (after deploy)</li>
+      <li>commits：<code>dc91049a</code>（#1） + <code>d05dfa5b</code>（#5）on branch <code>lucy-fix-chatroom-issue</code></li>
+      <li>本對比報告：<code>apps/chat-perf-compare.html</code></li>
+      <li>完整報告（含原始診斷、實作驗證、所有 recommendations）：<code>apps/chat-perf-report.html</code></li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>
