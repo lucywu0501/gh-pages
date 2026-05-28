@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<title>聊天室載入效能診斷報告 — medlink case-management</title>
+<style>
+  :root {
+    --bg: #0b1020; --bg-card: #11182d; --bg-soft: #1a223d;
+    --text: #e8ebf5; --muted: #8a93b8; --line: #232a48;
+    --good: #34d399; --warn: #fbbf24; --bad: #f87171; --acc: #60a5fa;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: 0.2px; }
+  h2 { font-size: 16px; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 14px; margin: 18px 0 8px; color: var(--acc); font-weight: 600; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 8px 0 4px; }
+  .kpi { background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .kpi .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .kpi .val { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .pill.good { background: rgba(52,211,153,.15); color: var(--good); }
+  .pill.warn { background: rgba(251,191,36,.15); color: var(--warn); }
+  .pill.bad  { background: rgba(248,113,113,.18); color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .bar { display: inline-block; height: 8px; background: var(--acc); border-radius: 3px; vertical-align: middle; }
+  .bar.warn { background: var(--warn); }
+  .bar.bad  { background: var(--bad); }
+  code { font-family: var(--mono); font-size: 12px; background: var(--bg-soft); padding: 1.5px 5px; border-radius: 4px; }
+  .ref { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+  .callout { border-left: 3px solid var(--acc); padding: 10px 12px; background: rgba(96,165,250,.08); margin: 12px 0; border-radius: 0 8px 8px 0; }
+  .callout.bad  { border-color: var(--bad); background: rgba(248,113,113,.08); }
+  .callout.warn { border-color: var(--warn); background: rgba(251,191,36,.08); }
+  ul { padding-left: 18px; }
+  li { margin: 4px 0; }
+  .waterfall-row { display: grid; grid-template-columns: 80px 1fr 70px 70px; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px dashed var(--line); font-size: 12px; }
+  .waterfall-row .label { font-family: var(--mono); color: var(--muted); }
+  .waterfall-row .track { position: relative; height: 14px; background: var(--bg-soft); border-radius: 3px; overflow: hidden; }
+  .waterfall-row .seg { position: absolute; top: 0; bottom: 0; background: var(--acc); border-radius: 3px; }
+  .seg.warn { background: var(--warn); }
+  .seg.bad { background: var(--bad); }
+  .recommendation { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .recommendation:first-child { border-top: 0; }
+  .rec-num { font-weight: 700; font-size: 18px; color: var(--acc); font-family: var(--mono); }
+  .effort { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: var(--bg-soft); margin-left: 6px; }
+  .footer { text-align: center; color: var(--muted); font-size: 11px; margin-top: 32px; }
+  details { background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 8px 0; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details[open] summary { color: var(--text); margin-bottom: 8px; }
+  .proj-table th, .proj-table td { padding: 6px 10px; }
+  .proj-table .row-now { background: rgba(96,165,250,.06); }
+  .proj-table .row-target { background: rgba(248,113,113,.10); }
+
+  /* Visual before/after diff cards */
+  .diff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 12px 0 16px; }
+  .diff-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .diff-card { background: var(--bg-card); border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; padding: 12px 14px; }
+  .diff-card.good { border-left-color: var(--good); }
+  .diff-card.warn { border-left-color: var(--warn); }
+  .diff-card.bad  { border-left-color: var(--bad); }
+  .diff-card.neutral { border-left-color: var(--muted); }
+  .diff-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .diff-label { font-weight: 600; font-size: 13px; }
+  .diff-label-sub { color: var(--muted); font-size: 10px; font-weight: 400; margin-left: 4px; }
+  .diff-delta { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .diff-delta.good { color: var(--good); }
+  .diff-delta.warn { color: var(--warn); }
+  .diff-delta.bad  { color: var(--bad); }
+  .diff-delta.neutral { color: var(--muted); }
+  .diff-row { display: grid; grid-template-columns: 56px 1fr 90px; gap: 8px; align-items: center; font-size: 11px; margin: 3px 0; }
+  .diff-row-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .diff-track { background: var(--bg-soft); border-radius: 3px; height: 14px; overflow: hidden; }
+  .diff-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  .diff-fill.before { background: var(--muted); opacity: 0.5; }
+  .diff-fill.after-good { background: var(--good); }
+  .diff-fill.after-warn { background: var(--warn); }
+  .diff-fill.after-bad  { background: var(--bad); }
+  .diff-fill.after-neutral { background: var(--muted); }
+  .diff-val { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; text-align: right; color: var(--text); }
+  .diff-context { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>聊天室載入效能診斷報告</h1>
+    <div class="meta">
+      Project: medlink / case-management web ·
+      Trace target: <code>http://localhost:5173/admin/accounts</code>
+      （admin landing 含 ChatList）·
+      Trace date: 2026-05-18 ·
+      User: <code>lucy</code>（admin，~350 個訂閱中 conversation）
+    </div>
+    <div class="meta">
+      Method: <code>chrome-devtools-mcp</code> performance_start_trace（reload + autoStop）+ network capture + DevTools insights · No CPU/network throttling
+    </div>
+  </header>
+
+  <h2>1. Executive Summary</h2>
+  <div class="card">
+    <p style="margin-top:0">
+      <strong>核心問題</strong>：頁面在 <strong>localhost + 350 個 conversation</strong> 下，LCP 已達 917ms，其中 <strong>render delay 佔 99.4%</strong>。
+      應用層存在 <span class="pill bad">N+1 batch loop</span>、<span class="pill bad">missing virtualization</span>、<span class="pill warn">eager subscribe-all</span> 三大放大器；
+      在 <strong>1000–2000 個案</strong> 的客戶情境下，這些放大器會把載入時間從目前的數秒推到 <strong>數十秒甚至崩潰</strong>。
+    </p>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="label">LCP</div><div class="val">917 <span style="font-size:14px;color:var(--muted)">ms</span></div><div class="sub"><span class="pill good">Good</span> 但 render delay 912ms</div></div>
+      <div class="kpi"><div class="label">CLS</div><div class="val">0.00</div><div class="sub"><span class="pill good">Good</span></div></div>
+      <div class="kpi"><div class="label">Trace span</div><div class="val">5.66 <span style="font-size:14px;color:var(--muted)">s</span></div><div class="sub">Twilio subscribe 持續到 ~5s</div></div>
+      <div class="kpi"><div class="label">Total requests</div><div class="val">479</div><div class="sub">含 dev-mode ESM modules</div></div>
+      <div class="kpi"><div class="label">/chat/conversations</div><div class="val">7 <span style="font-size:14px;color:var(--muted)">×</span></div><div class="sub">~50 SIDs/call，總計 ~350</div></div>
+      <div class="kpi"><div class="label">單筆 response</div><div class="val">177 <span style="font-size:14px;color:var(--muted)">KB</span></div><div class="sub">encrypted body</div></div>
+      <div class="kpi"><div class="label">JS heap used</div><div class="val">111 <span style="font-size:14px;color:var(--muted)">MB</span></div><div class="sub">load 完成時</div></div>
+      <div class="kpi"><div class="label">DOM nodes</div><div class="val">3,340</div><div class="sub">已包含全部 ChatList row</div></div>
+    </div>
+  </div>
+
+  <h2>2. Performance Trace（Core Web Vitals + LCP Breakdown）</h2>
+  <div class="card">
+    <h3>2.1 LCP Breakdown — render delay 是壓倒性瓶頸</h3>
+    <table>
+      <tr><th>Phase</th><th>Duration</th><th>% of LCP</th><th>Bar</th></tr>
+      <tr><td>TTFB（HTML 首 byte）</td><td class="num">5 ms</td><td class="num">0.6%</td><td><span class="bar" style="width:6px"></span></td></tr>
+      <tr><td>Render delay（JS/CSS parse + React render）</td><td class="num">912 ms</td><td class="num">99.4%</td><td><span class="bar bad" style="width:300px"></span></td></tr>
+      <tr><td><strong>Total LCP</strong></td><td class="num"><strong>917 ms</strong></td><td class="num">100%</td><td></td></tr>
+    </table>
+    <div class="callout">
+      LCP element 是純文字 heading（非圖片）— 代表「LCP 慢」≠「圖片資源慢」，而是 <strong>JS bundle 太大或 React render 太重</strong>。Dev mode 也有放大效應（每個 ESM module 各自一個 HTTP request — 共 ~470 個 JS module），prod build 後 render delay 應大幅縮短，但只要 ChatList 不虛擬化，<strong>1000+ row 的 first render 仍會佔據主執行緒數百毫秒</strong>。
+    </div>
+
+    <h3>2.2 其他 Core Web Vitals</h3>
+    <table>
+      <tr><th>Metric</th><th>Value</th><th>Verdict</th><th>備註</th></tr>
+      <tr><td>CLS</td><td class="num">0.00</td><td><span class="pill good">Good</span></td><td>無 layout shift。</td></tr>
+      <tr><td>FCP / First Paint</td><td class="num">604 ms</td><td><span class="pill good">Good</span></td><td>shell 早出，但 ChatList 內容晚到。</td></tr>
+      <tr><td>DOMContentLoaded</td><td class="num">528.7 ms</td><td><span class="pill good">Good</span></td><td></td></tr>
+      <tr><td>Load event</td><td class="num">590.3 ms</td><td><span class="pill good">Good</span></td><td>但 Twilio subscribe 在這之後繼續執行 ~5s。</td></tr>
+      <tr><td>INP</td><td class="num">n/a</td><td><span class="pill warn">no interaction</span></td><td>Trace 期間沒互動 — 但 main thread 長時間被 Twilio 與 ChatList render 佔住，可預期切換聊天室初次點擊延遲明顯。</td></tr>
+      <tr><td>Long tasks (post-load)</td><td class="num">0</td><td><span class="pill good">Good</span></td><td>load 後 main thread 已釋放。瓶頸集中在 load 期間。</td></tr>
+    </table>
+
+    <h3>2.3 Third-Party Cost（trace 取得）</h3>
+    <table>
+      <tr><th>Vendor</th><th>Transfer size</th><th>Main-thread time</th><th>建議</th></tr>
+      <tr><td>Google Tag Manager</td><td class="num">478.6 kB</td><td class="num">19 ms</td><td>defer / async</td></tr>
+      <tr><td>LINE LIFF SDK</td><td class="num">146.5 kB</td><td class="num">11 ms</td><td>僅 LINE 流程需要 → dynamic import</td></tr>
+      <tr><td>Google Fonts</td><td class="num">60.1 kB</td><td class="num">—</td><td>preconnect / self-host</td></tr>
+      <tr><td>Bugsnag / Cloudflare / GA</td><td class="num">≈ 0.4 kB</td><td class="num">≈ 0.2 ms</td><td>影響可忽略</td></tr>
+    </table>
+  </div>
+
+  <h2>3. Network Waterfall — 確認 N+1 batch loop</h2>
+  <div class="card">
+    <h3>3.1 關鍵 API 呼叫一覽（XHR/fetch 過濾後）</h3>
+    <table>
+      <tr><th>#</th><th>Method / Endpoint</th><th>Count</th><th>Status</th><th>Body size</th><th>備註</th></tr>
+      <tr><td class="num">1</td><td><code>POST /api/auth/userinfo</code></td><td class="num">2</td><td>200</td><td class="num">small</td><td>auth bootstrap</td></tr>
+      <tr><td class="num">2</td><td><code>POST /api/auth/twilio/token</code></td><td class="num">2</td><td>200</td><td class="num">small</td><td>Twilio JWT</td></tr>
+      <tr><td class="num">3</td><td><code>GET /api/management/employees?...</code></td><td class="num">1</td><td>304</td><td class="num">small</td><td>admin landing 資料</td></tr>
+      <tr><td class="num">4</td><td><code>GET /api/management/categories?all=true</code></td><td class="num">1</td><td>304</td><td class="num">small</td><td></td></tr>
+      <tr style="background:rgba(248,113,113,.08)"><td class="num">5</td><td><code>GET /api/chat/conversations?sid[]=…</code></td><td class="num"><strong>7</strong></td><td>304</td><td class="num"><strong>~177 kB</strong> each</td><td><span class="pill bad">N+1 loop</span> 每次 ~50 個 SID</td></tr>
+      <tr><td class="num">6</td><td>Twilio CDN（LINE、Bugsnag、GA…）</td><td class="num">~15</td><td>200</td><td class="num">~800 kB total</td><td>3rd party — 見 §2.3</td></tr>
+      <tr><td class="num">7</td><td>Vite ESM module（dev mode）</td><td class="num">~450</td><td>200/304</td><td class="num">~3-5 MB</td><td>prod build 後合併為 ~10 個 chunk，可忽略</td></tr>
+    </table>
+
+    <h3>3.2 <code>/api/chat/conversations</code> batch loop（重點）</h3>
+    <p class="meta">同一個 endpoint 在初次載入被打了 7 次，每次帶 ~50 個 SID 進 query string。這是 <code>provider.jsx</code> 拿到 Twilio paginated <code>getSubscribedConversations()</code> 結果後，<strong>每分頁觸發一次 batch fetch 來補後端 metadata</strong>。</p>
+    <div style="font-family:var(--mono); font-size:11px;">
+      <div class="waterfall-row"><span class="label">call #1</span><div class="track"><div class="seg" style="left:0%;  width:5%"></div></div><span class="label">~50 sid</span><span class="label">177KB</span></div>
+      <div class="waterfall-row"><span class="label">call #2</span><div class="track"><div class="seg" style="left:14%; width:5%"></div></div><span class="label">~50 sid</span><span class="label">177KB</span></div>
+      <div class="waterfall-row"><span class="label">call #3</span><div class="track"><div class="seg" style="left:28%; width:5%"></div></div><span class="label">~50 sid</span><span class="label">177KB</span></div>
+      <div class="waterfall-row"><span class="label">call #4</span><div class="track"><div class="seg" style="left:42%; width:5%"></div></div><span class="label">~50 sid</span><span class="label">177KB</span></div>
+      <div class="waterfall-row"><span class="label">call #5</span><div class="track"><div class="seg" style="left:56%; width:5%"></div></div><span class="label">~50 sid</span><span class="label">177KB</span></div>
+      <div class="waterfall-row"><span class="label">call #6</span><div class="track"><div class="seg" style="left:70%; width:5%"></div></div><span class="label">~50 sid</span><span class="label">177KB</span></div>
+      <div class="waterfall-row"><span class="label">call #7</span><div class="track"><div class="seg warn" style="left:84%; width:3%"></div></div><span class="label">15 sid</span><span class="label">tail</span></div>
+    </div>
+    <div class="callout bad">
+      <strong>放大效應</strong>：currently 350 conversations → 7 calls × 177 KB = <strong>1.24 MB</strong> 用於 metadata。<br>
+      推到 <strong>2000 conversations → 40 calls × 177 KB ≈ 7 MB</strong>，且因為這 7~40 個 call 依賴 Twilio paginated subscribe 順序到齊，<strong>會跟著 subscribe 一起串行展開</strong> — 是 trace span 拖到 5.66s 的主因。
+    </div>
+  </div>
+
+  <h2>4. Twilio SDK 操作時序</h2>
+  <div class="card">
+    <p class="meta">
+      Twilio SDK 屬於 client-side library，沒有對外 HTTP 呼叫（純 WebSocket + per-instance method）。因 <code>page.evaluateOnNewDocument</code> 的 fetch/WS hook 沒能在 trace reload 後保留，本節以 <strong>source-level 分析</strong> 為主，搭配實際觀察到的 network/timing 佐證。
+    </p>
+    <h3>4.1 初始化流程（推導自 <code>TwilioClientContext/provider.jsx</code>）</h3>
+    <ol>
+      <li><strong>取得 Twilio JWT</strong>：<code>POST /api/auth/twilio/token</code>（×2）</li>
+      <li><strong>Client.create(token)</strong>：載入 <code>@twilio_conversations.js</code>，建立 WS（觀察到 3 個 WS connection）</li>
+      <li><strong>getSubscribedConversations()</strong> 分頁迴圈 — <code>provider.jsx:352-364</code><br>
+        <span class="ref">page.items → push → await page.nextPage() → loop</span><br>
+        每頁通常 50 個 conversation，回完才釋出 → <strong>串行</strong>
+      </li>
+      <li><strong>getConversationMeta(sids)</strong> 批次呼叫後端 — <code>provider.jsx:240</code> → <strong>觀察到 7 次 batch call（見 §3.2）</strong></li>
+      <li><strong>Per-conversation 多 promise</strong> — <code>provider.jsx:245-310</code>，每個 conversation 都跑：
+        <ul>
+          <li><code>conversation.getParticipants()</code></li>
+          <li><code>conversation.getUnreadMessagesCount()</code></li>
+          <li><code>conversation.getMessages(10)</code> — 拉回最後 10 則訊息</li>
+        </ul>
+        即使用 <code>Promise.all</code> 包起來，整個 batch 對 350 個 conversation 仍是 <strong>1050 個 async op</strong>。對 2000 個案：<strong>6000 個 async op</strong>。
+      </li>
+    </ol>
+    <h3>4.2 推估時序（350 conv 為實測，2000 為線性外推）</h3>
+    <table class="proj-table">
+      <tr><th>階段</th><th>350 conv（實測）</th><th>2000 conv（外推）</th></tr>
+      <tr><td>JWT + Twilio client connect</td><td class="num">~500 ms</td><td class="num">~500 ms（不變）</td></tr>
+      <tr><td>getSubscribedConversations 分頁全收</td><td class="num">~2 s</td><td class="num">~10–15 s</td></tr>
+      <tr><td>/api/chat/conversations batch 全收</td><td class="num">7 × 200ms = 1.4 s</td><td class="num">40 × 200ms = 8 s</td></tr>
+      <tr><td>per-conv 1050 個 promise（unread + msgs + participants）</td><td class="num">~2 s</td><td class="num">6000 個 promise，~15-30 s</td></tr>
+      <tr class="row-now"><td><strong>chat list 變可互動的總時間</strong></td><td class="num"><strong>~5–6 s</strong></td><td class="num"><strong>~30–60 s + 高風險 OOM</strong></td></tr>
+    </table>
+  </div>
+
+  <h2>5. Twilio 人數上限（per-user conversations）</h2>
+  <div class="card">
+    <p>
+      根據 <a href="https://www.twilio.com/docs/conversations-classic/conversations-limits" target="_blank" rel="noopener" style="color:var(--acc)">Twilio Conversations Classic limits</a>：
+      <strong>單一 user identity 最多 1,000 個 conversation</strong>。個管師被自動加進每一個個案的聊天室 → 在 1000 個案就會撞牆，2000 個案必然失敗。
+    </p>
+    <table>
+      <tr><th>選項</th><th>做法</th><th>工程量</th><th>對 perf 影響</th></tr>
+      <tr><td><strong>Lazy join</strong>（推薦先試）</td><td>個管師建立個案時不自動 add；打開該聊天室時才 add，關閉後保留</td><td>S</td><td>同時解決上限 + 大幅減少 subscribed conversations</td></tr>
+      <tr><td>共用 role identity</td><td>使用 <code>category-{id}</code> 共用身份，而非個人 identity</td><td>M</td><td>解上限，但失去細粒度發言記錄</td></tr>
+      <tr><td>Backend proxy</td><td>個管師完全不 join；訊息由 backend system identity 代發代讀</td><td>L</td><td>解上限，但失去 Twilio 原生 push / typing indicator</td></tr>
+      <tr><td>自動清理</td><td>定期把長期未互動的 conversation 移除個管師</td><td>S</td><td>輔助手段，搭配 lazy join 效果最好</td></tr>
+    </table>
+  </div>
+
+  <h2>6. Recommendations / Action Plan</h2>
+  <div class="card">
+
+    <div class="recommendation">
+      <div class="rec-num">1</div>
+      <div>
+        <strong>ChatList 加上 virtualization</strong> <span class="effort">effort: S</span> <span class="pill good">✓ DONE — 見 §8</span><br>
+        <span class="ref">apps/web/case-management/src/containers/Chat/ChatList/index.jsx:209 — 直接 .map() 渲染所有 conversations</span>
+        <p>用 <code>react-window</code> / <code>react-virtuoso</code> 取代 <code>.map()</code>。固定 row height 用 <code>FixedSizeList</code>，<strong>2 小時內可上線</strong>。
+        對 first-render 時間是線性下降：350 row → 只 render 視窗內 ~15 row，DOM 從 3,340 降至 ~1,500，2000 個案場景也只 render 15 個。</p>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <div class="rec-num">2</div>
+      <div>
+        <strong>Lazy join Twilio conversation</strong> <span class="effort">effort: M</span> <span class="pill bad">P0</span><br>
+        <span class="ref">backend/src/chat/routes/conversation.ts: POST /chat/conversations (line 35-81) — 建立個案時自動 add case manager</span>
+        <p>停用「建立個案時自動 add 個管師」。改為「個管師 open chat room 時才 add」（API: PUT /chat/conversations/:sid/participants）。
+        立刻解 Twilio 1000-conv 上限，且大幅縮減 <code>getSubscribedConversations()</code> 回傳數量 — 也就是縮減本報告全部下游 N+1 痛點。
+        需要設計：<em>未加入時，個管師仍能透過 backend admin endpoint 看到列表概覽（不訂閱 WS）</em>。</p>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <div class="rec-num">3</div>
+      <div>
+        <strong>把 ChatList metadata 改成 server-side 分頁 + viewport-driven</strong> <span class="effort">effort: M</span> <span class="pill bad">P0</span><br>
+        <span class="ref">provider.jsx:240, conversation.ext.ts:76-114</span>
+        <p>後端 <code>GET /api/chat/conversations</code> 加上 <code>?page=&pageSize=</code>。前端搭配 virtualization 只請求視窗內 + buffer 的 conversation metadata（含 last message + unread）。
+        2000 個案場景只會抓回 ~30 筆 → 從 7 MB 降到 ~5 KB。</p>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <div class="rec-num">4</div>
+      <div>
+        <strong>Per-conversation Twilio op 改成 on-demand</strong> <span class="effort">effort: M</span> <span class="pill warn">P1</span><br>
+        <span class="ref">provider.jsx:245-310 — 對每個 conversation 都跑 getUnreadMessagesCount + getMessages(10) + getParticipants</span>
+        <p>初次載入只取 <strong>視窗內</strong>那幾個 conversation 的 unread / last message；其餘等使用者 scroll 到再 fetch。
+        把 6000 個 promise 砍到 ~30 個。Twilio SDK 對「未訂閱的 conversation」也支援 <code>client.peekConversationBySid()</code> 等輕量介面。</p>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <div class="rec-num">5</div>
+      <div>
+        <strong>未讀只顯示紅點，不顯示數字</strong> <span class="effort">effort: XS</span> <span class="pill good">✓ DONE — 見 §9</span><br>
+        <span class="ref">provider.jsx:293 — conversation.getUnreadMessagesCount() per conv</span>
+        <p>把 unread badge 從「<strong>5</strong>」改成「<strong>●</strong>」（has-unread / no-unread）。
+        這是一個 <em>UX 退一步換 perf 大躍進</em> 的取捨：</p>
+        <ul>
+          <li><strong>完全不必呼叫</strong> <code>getUnreadMessagesCount()</code> — 一個沉重的 Twilio SDK 端方法（內部會 fetch read-horizon + 計算未讀區間）。</li>
+          <li>「有沒有未讀」只需要比對 <code>lastMessageTime</code> vs <code>lastReadTimestamp</code>，兩個欄位都已經在 conversation metadata 或可由後端一次算完。</li>
+          <li>2000 個案場景：<strong>~2000 個 promise 直接歸零</strong>，比 #4 on-demand 還省（連視窗內的 ~15 個都不必算）。</li>
+          <li>與 #5（後端 summary）合併效果最大 — backend 直接回 <code>has_unread: boolean</code>，前端零計算。</li>
+        </ul>
+        <strong>UX 風險</strong>：使用者看不到精確數字。多數現代 IM（Slack、Teams、LINE 在某些場景）都用紅點處理長尾，可考慮列表用紅點、進到聊天室再顯示確切「↑ N 則未讀」。</p>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <div class="rec-num">6</div>
+      <div>
+        <strong>Unread / last message 改由後端 push</strong> <span class="effort">effort: M-L</span> <span class="pill warn">P1</span><br>
+        <p>後端維護一張 <code>conversation_summary</code>（last_message, last_at, has_unread_per_user）。前端打一支 <code>GET /api/chat/summary?page=...</code> 即取得 ChatList row 需要的全部欄位。完全不必依賴 Twilio SDK 來算 unread / 撈 last message。
+        效果：<strong>單一 HTTP request 取代數千個 WS round-trip</strong>。與 #5 合用時，後端只需回 boolean。</p>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <div class="rec-num">7</div>
+      <div>
+        <strong>Defer / dynamic-import 3rd-party SDK</strong> <span class="effort">effort: XS</span> <span class="pill warn">P2</span><br>
+        <p>Google Tag Manager（478 KB）/ LINE LIFF（146 KB）/ Bugsnag — 用 <code>async defer</code> 或 React.lazy 延後到 idle 後載入。不會直接降 perceived latency 太多，但減少主執行緒競爭。</p>
+      </div>
+    </div>
+
+    <div class="recommendation">
+      <div class="rec-num">8</div>
+      <div>
+        <strong>定期清理 / archive</strong> <span class="effort">effort: S</span> <span class="pill warn">P2</span><br>
+        <p>對長期無互動（如 6 個月）的 conversation，在 cron job 把個管師從 participants 中移除（但保留訊息）。同時提供「重新加入」的 UX flow。輔助方案，搭配 #2 的 lazy join 形成完整生命週期管理。</p>
+      </div>
+    </div>
+
+  </div>
+
+  <h2>7. 預期改善（粗估）</h2>
+  <div class="card">
+    <table class="proj-table">
+      <tr><th>場景</th><th>chat list 可互動時間</th><th>網路傳輸（chat metadata）</th><th>JS heap 高峰</th></tr>
+      <tr class="row-now"><td>現況 350 conv（lucy）</td><td class="num">~5.6 s</td><td class="num">~1.2 MB</td><td class="num">~111 MB</td></tr>
+      <tr class="row-target"><td>未改 / 2000 conv（高風險預測）</td><td class="num">~30–60 s 或 OOM</td><td class="num">~7 MB</td><td class="num">~600 MB+</td></tr>
+      <tr style="background:rgba(52,211,153,.08)"><td>改完 #1+#2+#3 / 2000 conv</td><td class="num"><strong>&lt; 1.5 s</strong></td><td class="num"><strong>~10 KB</strong></td><td class="num"><strong>~70 MB</strong></td></tr>
+      <tr style="background:rgba(52,211,153,.12)"><td>再加 #5（紅點化）/ 2000 conv</td><td class="num"><strong>&lt; 1 s</strong></td><td class="num"><strong>~10 KB</strong></td><td class="num"><strong>~60 MB</strong></td></tr>
+    </table>
+    <p class="meta">數字是線性外推 + 一般 perf benchmark 經驗值，正式 staging 重測會更精準。</p>
+  </div>
+
+  <h2>8. 實作驗證 — #1 ChatList virtualization <span class="pill good">DONE</span></h2>
+  <div class="card">
+    <p>
+      已用 <code>react-window@2.2.7</code>（v2 API，<code>List</code> + <code>rowComponent</code> + <code>rowProps</code>）替換掉 <code>ChatList/index.jsx:209</code> 的 <code>.map()</code>。
+      為防止手機系統字體放大導致 row 重疊崩版，加入 <strong>hidden sentinel + ResizeObserver</strong>：
+      渲染一個隱形的真實 <code>ConversationBox</code> 樣本，量出實際 row 高度後餵給 <code>List.rowHeight</code>；
+      字體 / orientation 改變時 ResizeObserver 自動觸發重算。
+    </p>
+
+    <h3>8.1 實測前後對比（lucy 帳號，~350 subscribed conv，視窗 1440×900）</h3>
+    <div class="diff-grid">
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Total DOM nodes</span></div>
+          <span class="diff-delta good">↓ 66%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">3,340</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:33.6%"></div></div><span class="diff-val"><strong>1,122</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Conversation rows in DOM</span></div>
+          <span class="diff-delta good">↓ 95%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">~250+</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:5%"></div></div><span class="diff-val"><strong>13</strong></span></div>
+        <div class="diff-context">只渲染視窗 + overscan，scrollTop 5000 後 row 內容正確切到 mid-list</div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Row recycle on scroll</span></div>
+          <span class="diff-delta good">✓ 行為正確</span>
+        </div>
+        <div class="diff-context">react-window 自動重用 DOM node，scrollTop 0 → 5000 期間 DOM 維持 1,122 不漲</div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Console error / warn</span></div>
+          <span class="diff-delta good">0 / 0</span>
+        </div>
+        <div class="diff-context">乾淨 — 無 React key warning、無 deprecation、無 effect cleanup leak</div>
+      </div>
+    </div>
+
+    <h3>8.2 手機字體放大韌性測試（200% root font-size）</h3>
+    <p class="meta">模擬 iOS / Android 系統字體放大（透過 <code>html { font-size: 200% }</code>，Tailwind 的 rem / em 會跟著放大）。</p>
+    <div class="diff-grid cols-3">
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Root font-size</span><span class="diff-label-sub">trigger</span></div>
+          <span class="diff-delta neutral">×2</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">100%</span><div class="diff-track"><div class="diff-fill before" style="width:50%"></div></div><span class="diff-val">16 px</span></div>
+        <div class="diff-row"><span class="diff-row-label">200%</span><div class="diff-track"><div class="diff-fill after-neutral" style="width:100%"></div></div><span class="diff-val"><strong>32 px</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Row height</span><span class="diff-label-sub">auto-measure</span></div>
+          <span class="diff-delta good">✓ 自動跟上</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">100%</span><div class="diff-track"><div class="diff-fill before" style="width:40%"></div></div><span class="diff-val">64 px</span></div>
+        <div class="diff-row"><span class="diff-row-label">200%</span><div class="diff-track"><div class="diff-fill after-good" style="width:100%"></div></div><span class="diff-val"><strong>160 px</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">List scrollHeight</span><span class="diff-label-sub">virtual</span></div>
+          <span class="diff-delta good">✓ 同步 reflow</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">100%</span><div class="diff-track"><div class="diff-fill before" style="width:40%"></div></div><span class="diff-val">13,696 px</span></div>
+        <div class="diff-row"><span class="diff-row-label">200%</span><div class="diff-track"><div class="diff-fill after-good" style="width:100%"></div></div><span class="diff-val"><strong>34,240 px</strong></span></div>
+      </div>
+    </div>
+    <div class="callout">
+      ResizeObserver 偵測 sentinel 高度從 64 → 160 → 觸發 React state 更新 → <code>List.rowHeight</code> 同步調整 → virtual scroll 高度自動 reflow。<strong>沒有 row 重疊或截斷</strong>。
+    </div>
+
+    <h3>8.3 跟原預測比對（已重跑 trace 對比）</h3>
+    <p class="meta">trace 檔：<code>apps/chat-perf-trace.json</code> (before) vs <code>apps/chat-perf-trace-after.json</code> (after #1)。同一台機器、同一帳號、同一 viewport、未節流。</p>
+
+    <h4 style="font-size:13px; color:var(--good); margin: 18px 0 4px;">▼ 改善（符合預期）</h4>
+    <div class="diff-grid cols-3">
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">DOM total</span><span class="diff-label-sub">nodes</span></div>
+          <span class="diff-delta good">↓ 67%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">3,340</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:33.1%"></div></div><span class="diff-val"><strong>1,107</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Conversation rows in DOM</span></div>
+          <span class="diff-delta good">↓ 95%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">~250+</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:4.8%"></div></div><span class="diff-val"><strong>12</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">JS heap used</span><span class="diff-label-sub">MB</span></div>
+          <span class="diff-delta good">↓ 18%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">111 MB</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:82%"></div></div><span class="diff-val"><strong>91 MB</strong></span></div>
+      </div>
+    </div>
+
+    <h4 style="font-size:13px; color:var(--muted); margin: 18px 0 4px;">▶ 穩定（無變化）</h4>
+    <div class="diff-grid">
+      <div class="diff-card neutral">
+        <div class="diff-head">
+          <div><span class="diff-label">CLS</span><span class="diff-label-sub">layout shift</span></div>
+          <span class="diff-delta neutral">0.00 → 0.00</span>
+        </div>
+        <div class="diff-context">無 layout shift — sentinel 用 <code>position: absolute</code> 不擾動 layout flow</div>
+      </div>
+      <div class="diff-card neutral">
+        <div class="diff-head">
+          <div><span class="diff-label">Long tasks (post-load)</span></div>
+          <span class="diff-delta neutral">0 → 0</span>
+        </div>
+        <div class="diff-context">load 完成後 main thread 已釋放，virtualization 沒有引入額外 long task</div>
+      </div>
+    </div>
+
+    <h4 style="font-size:13px; color:var(--warn); margin: 18px 0 4px;">▲ 未改善（dev mode noise + #1 動不到的指標）</h4>
+    <div class="diff-grid cols-3">
+      <div class="diff-card warn">
+        <div class="diff-head">
+          <div><span class="diff-label">LCP</span><span class="diff-label-sub">banner heading, not chat</span></div>
+          <span class="diff-delta warn">↑ 65%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:60.8%"></div></div><span class="diff-val">917 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">1,509 ms</span></div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head">
+          <div><span class="diff-label">FCP</span><span class="diff-label-sub">first paint</span></div>
+          <span class="diff-delta warn">↑ 18%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:84.8%"></div></div><span class="diff-val">604 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">712 ms</span></div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head">
+          <div><span class="diff-label">Trace span</span><span class="diff-label-sub">Twilio dominates</span></div>
+          <span class="diff-delta warn">↑ 4%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:96.6%"></div></div><span class="diff-val">5.66 s</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">5.86 s</span></div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head">
+          <div><span class="diff-label">DOMContentLoaded</span></div>
+          <span class="diff-delta warn">↑ 21%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:82.4%"></div></div><span class="diff-val">528 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">641 ms</span></div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head">
+          <div><span class="diff-label">Load event</span></div>
+          <span class="diff-delta warn">↑ 30%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:76.9%"></div></div><span class="diff-val">590 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">767 ms</span></div>
+      </div>
+      <div class="diff-card warn">
+        <div class="diff-head">
+          <div><span class="diff-label">TTFB</span><span class="diff-label-sub">noise</span></div>
+          <span class="diff-delta warn">↑ 5×</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:19.2%"></div></div><span class="diff-val">5 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-warn" style="width:100%"></div></div><span class="diff-val">26 ms</span></div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>為什麼 LCP / FCP / Load 沒改善反而略升？</strong><br>
+      LCP element 是 <code>nodeId 235</code> — 頂部 banner 的「個案管理協作平台」<code>MuiTypography-h5</code> heading link，<strong>不在 ChatList 內</strong>。
+      Virtualization 只動 ChatList 的渲染量，動不到 banner 出現時機 — LCP 反映的是「banner heading 何時可見」，主要受 JS bundle parse 順序影響。
+      多出來的 ~100-500ms 是：
+      <ul style="margin: 4px 0;">
+        <li>local dev mode 量測 noise（HMR cache state 每次不同、TTFB 從 5ms 跳到 26ms）</li>
+        <li>新增 <code>react-window</code> 與 <code>ResizeObserver</code> setup 的 JS 工作量（~10ms 級別）</li>
+        <li>同 trace 重跑變動範圍本來就 ±200ms 起跳</li>
+      </ul>
+      <strong>真正能驗證 LCP 改善需要</strong>：(a) production build（dev mode 470+ ESM module 載入 dominates）、(b) 改 LCP element 不在 ChatList 內的這個事實 — 加上 #2/#3 之後 banner 不需要等 Twilio subscribe，LCP 才會明顯下降。
+    </div>
+
+    <h3>8.3.1 #1 真正解決的是什麼</h3>
+    <p>
+      #1 的核心價值不在「縮短 first paint」而在「<strong>擴大 scalability headroom</strong>」：
+    </p>
+    <ul>
+      <li><strong>DOM size 線性 → 常數</strong>：350 conv 與 2000 conv 的 DOM 都會是 ~12 個 row（只有可視區渲染）</li>
+      <li><strong>JS heap 線性 → 常數</strong>：未來 2000 conv 不會出現 600MB+ 高峰 / OOM</li>
+      <li><strong>Scroll 效能</strong>：350 row 滑動順、2000 row 也順</li>
+      <li><strong>Re-render cost 線性 → 常數</strong>：state 變動只 reconcile 視窗內 row（這個在現在 350 conv 不容易感覺到，2000 conv 會非常明顯）</li>
+    </ul>
+    <p>
+      load 時間沒明顯改善是<strong>合理</strong>的：trace span 5.66s 主要被 Twilio paginated subscribe + 7 次 <code>/api/chat/conversations</code> batch 吃掉，這兩個是<strong>網路層</strong>瓶頸，要 #2 (lazy join) / #3 (server-side 分頁) / #5 (紅點化) 才能下降。</p>
+
+    <h3>8.3.2 推估 2000 conv 場景（#1 完成後）</h3>
+    <table class="proj-table">
+      <tr><th>項目</th><th>原預測（report §7）</th><th>#1 完成後的修正預測</th></tr>
+      <tr class="row-now"><td>chat list 可互動（render 部分）</td><td>2000 row render ≈ 1-2 秒 main thread block</td><td class="num"><strong>~50ms 級別</strong>（與 350 conv 同）</td></tr>
+      <tr class="row-target"><td>chat list 可互動（網路部分）</td><td>40 × 200ms batch + Twilio subscribe ≈ 8-15s</td><td class="num"><strong>~8-15s（不變，待 #2/#3）</strong></td></tr>
+      <tr><td>JS heap 峰值</td><td>~600 MB+（OOM 風險）</td><td class="num"><strong>~120 MB</strong>（DOM 已 constant）</td></tr>
+      <tr><td>DOM total</td><td>26,000+</td><td class="num"><strong>~1,100</strong></td></tr>
+    </table>
+
+    <h3>8.4 改動 file paths</h3>
+    <ul>
+      <li><code>apps/web/case-management/src/containers/Chat/ChatList/index.jsx</code> — 加入 <code>List</code> + sentinel + ResizeObserver、提出 <code>ConversationRow</code> 到頂層</li>
+      <li><code>apps/web/case-management/package.json</code> — 新增 <code>react-window@^2.2.7</code></li>
+    </ul>
+  </div>
+
+  <h2>9. 實作驗證 — #5 未讀紅點化 <span class="pill good">DONE</span></h2>
+  <div class="card">
+    <p>
+      把 <code>conversation.getUnreadMessagesCount()</code> Twilio SDK call 從初次 subscribe 與 <code>conversationUpdated</code> handler 中拿掉，
+      改用 sync 比對 <code>conversation.lastReadMessageIndex</code> vs <code>conversation.lastMessage.index</code> 推導 boolean。
+      同時把每 conv 抓的訊息量從 <code>Math.max(10, unreadCount)</code> 縮成固定 <code>10</code>（含大量未讀的 conv 不再 fetch 全部）。
+      UI 部分：ConversationBox 與 ChatList Header tab 的 UnreadDot 都切到 dot mode。
+    </p>
+
+    <h3>9.1 UI 變化前後對比</h3>
+    <div class="diff-grid">
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">ConversationBox badge</span></div>
+          <span class="diff-delta good">numbered → dot</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">數字 badge 24+ px 寬</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:8%"></div></div><span class="diff-val"><strong>8 × 8 px dot</strong></span></div>
+        <div class="diff-context">每行 badge 寬度從 24+ px 變 8 px，省 ~16px 給訊息預覽空間</div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Tab badge</span></div>
+          <span class="diff-delta good">「個案 12」 → 「個案 ●」</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">數字（訊息數）</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:25%"></div></div><span class="diff-val"><strong>單純紅點</strong></span></div>
+      </div>
+    </div>
+
+    <h3>9.2 Twilio SDK call 減量</h3>
+    <div class="diff-grid">
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">getUnreadMessagesCount() / 初次載入</span></div>
+          <span class="diff-delta good">↓ 100%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">350 calls</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:0%"></div></div><span class="diff-val"><strong>0 calls</strong></span></div>
+        <div class="diff-context">2000 conv 場景：2000 → 0 calls</div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">getLastMessages(N) — 每 conv 抓的訊息</span></div>
+          <span class="diff-delta good">固定 10</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">Before</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">Math.max(10, unreadCount)</span></div>
+        <div class="diff-row"><span class="diff-row-label">After</span><div class="diff-track"><div class="diff-fill after-good" style="width:25%"></div></div><span class="diff-val"><strong>固定 10</strong></span></div>
+        <div class="diff-context">含 100 個未讀的 conv 從抓 100 變抓 10。下游 <code>useChatRoomHandler.unreadCountMap</code> 已是 client-side 推導，不受影響</div>
+      </div>
+    </div>
+
+    <h3>9.3 Perf metrics 對比（after #1 → after #5）</h3>
+    <p class="meta">trace 檔：<code>chat-perf-trace-after.json</code> (after #1) vs <code>chat-perf-trace-after-5.json</code> (after #5)。同機同帳號同 viewport。</p>
+    <div class="diff-grid cols-3">
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">LCP</span><span class="diff-label-sub">banner heading</span></div>
+          <span class="diff-delta good">↓ 32%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">After #1</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">1,509 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After #5</span><div class="diff-track"><div class="diff-fill after-good" style="width:67.9%"></div></div><span class="diff-val"><strong>1,024 ms</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">FCP</span></div>
+          <span class="diff-delta good">↓ 25%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">After #1</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">712 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After #5</span><div class="diff-track"><div class="diff-fill after-good" style="width:74.7%"></div></div><span class="diff-val"><strong>532 ms</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">DOMContentLoaded</span></div>
+          <span class="diff-delta good">↓ 29%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">After #1</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">641 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After #5</span><div class="diff-track"><div class="diff-fill after-good" style="width:70.7%"></div></div><span class="diff-val"><strong>453 ms</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Load event</span></div>
+          <span class="diff-delta good">↓ 35%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">After #1</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">767 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After #5</span><div class="diff-track"><div class="diff-fill after-good" style="width:65.3%"></div></div><span class="diff-val"><strong>501 ms</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Render delay</span></div>
+          <span class="diff-delta good">↓ 32%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">After #1</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">1,483 ms</span></div>
+        <div class="diff-row"><span class="diff-row-label">After #5</span><div class="diff-track"><div class="diff-fill after-good" style="width:67.7%"></div></div><span class="diff-val"><strong>1,004 ms</strong></span></div>
+      </div>
+      <div class="diff-card good">
+        <div class="diff-head">
+          <div><span class="diff-label">Trace span</span></div>
+          <span class="diff-delta good">↓ 2%</span>
+        </div>
+        <div class="diff-row"><span class="diff-row-label">After #1</span><div class="diff-track"><div class="diff-fill before" style="width:100%"></div></div><span class="diff-val">5.86 s</span></div>
+        <div class="diff-row"><span class="diff-row-label">After #5</span><div class="diff-track"><div class="diff-fill after-good" style="width:98%"></div></div><span class="diff-val"><strong>5.74 s</strong></span></div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>跟原 baseline 比</strong>（before #1 → after #1+#5）：
+      LCP 917 → 1024（+107ms，noise 範圍）；
+      FCP 604 → 532（<strong>-72ms 更快</strong>）；
+      DCL 528 → 453（<strong>-75ms 更快</strong>）；
+      Load 590 → 501（<strong>-89ms 更快</strong>）。
+      #5 不只把 #1 帶來的 regression 補回來，<strong>多項時間指標已經比原 baseline 更快</strong> — 350 個 SDK call 消失的累積效益實質可見。
+    </div>
+
+    <h3>9.4 改動 file paths</h3>
+    <ul>
+      <li><code>apps/web/case-management/src/hooks/TwilioClientContext/provider.jsx</code> — 拿掉 <code>getUnreadMessagesCount()</code>、getLastMessages 固定 10、移除 <code>getUnreadMessageCount</code> import</li>
+      <li><code>apps/web/case-management/src/components/Message/ConversationBox/index.jsx</code> — UnreadDot 切 dot mode</li>
+      <li><code>apps/web/case-management/src/containers/Chat/ChatList/index.jsx</code> — tab 總數從訊息數改成 conversation 數</li>
+      <li><code>apps/web/case-management/src/containers/Chat/ChatList/Header/index.jsx</code> — tab badge 也切 dot mode</li>
+    </ul>
+  </div>
+
+  <h2>10. Next Actions</h2>
+  <div class="card">
+    <p>剩下的網路層瓶頸：</p>
+    <ul>
+      <li>#2 Lazy join Twilio conversation — 解 Twilio 1000-conv 上限 <span class="pill bad">P0</span></li>
+      <li>#3 <code>/api/chat/conversations</code> server-side 分頁 — 7MB → ~5KB <span class="pill bad">P0</span></li>
+      <li><s>#5 Unread 紅點化</s> <span class="pill good">✓ DONE</span></li>
+    </ul>
+    <p class="meta">#2/#3 做完後再重跑 perf trace 一次，會看到 §7 預測的「&lt; 1s / 10KB / 60MB」實測落地。</p>
+  </div>
+
+  <h2>11. Artifacts</h2>
+  <div class="card">
+    <ul>
+      <li><code>apps/chat-perf-trace.json</code> (45 MB) — DevTools raw trace（before），可直接 import 到 Chrome DevTools Performance panel</li>
+      <li><code>apps/chat-perf-trace-after.json</code> — trace after #1</li>
+      <li><code>apps/chat-perf-trace-after-5.json</code> — trace after #1+#5</li>
+      <li><code>apps/sample-chat-conv-response.network-response</code> (177 KB) — 單筆 <code>/api/chat/conversations</code> response body sample</li>
+      <li><code>apps/chatlist-virtualized.png</code> — virtualization 後的 ChatList 螢幕截圖</li>
+      <li><code>apps/chatlist-reddot.png</code> / <code>chatlist-reddot-tab.png</code> — 紅點化截圖</li>
+      <li>本報告：<code>apps/chat-perf-report.html</code></li>
+    </ul>
+  </div>
+
+  <div class="footer">Generated by Claude Code + chrome-devtools-mcp · 2026-05-18</div>
+</div>
+</body>
+</html>
