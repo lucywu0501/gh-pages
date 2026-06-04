@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>聊天室優化對比 Demo — 未讀紅點 ＆ 往下滑載入更多</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* ── product palette (matches real app) ── */
+    --red: #d32f2f;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --ink: #1f2328;
+    --card: #ffffff;
+    --hover: #f4f6f8;
+    --divider: #eceef0;
+    --cat-case: #1976d2;
+    --cat-staff: #2e7d32;
+    --cat-group: #6d28d9;
+    --cat-ai: #ea580c;
+
+    /* ── demo chrome palette (editorial) ── */
+    --paper: #f3f0ea;
+    --paper-2: #ebe6dd;
+    --chrome-ink: #1a1714;
+    --chrome-muted: #6f675c;
+    --accent: #d32f2f;
+    --before: #8a8378;
+    --after: #c0392b;
+
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+      "Microsoft JhengHei", "Noto Sans TC", "Helvetica Neue", Arial, sans-serif;
+    --serif: "Noto Serif TC", Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; }
+
+  body {
+    font-family: var(--sans);
+    color: var(--chrome-ink);
+    background-color: var(--paper);
+    background-image:
+      radial-gradient(circle at 18% 0%, rgba(211, 47, 47, 0.06), transparent 42%),
+      radial-gradient(circle at 88% 8%, rgba(25, 118, 210, 0.05), transparent 40%),
+      radial-gradient(rgba(26, 23, 20, 0.045) 1px, transparent 1px);
+    background-size: auto, auto, 22px 22px;
+    background-position: 0 0, 0 0, -1px -1px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+    padding: 56px 24px 88px;
+  }
+
+  /* ───────────────────────── header ───────────────────────── */
+  .page-header {
+    max-width: 920px;
+    margin: 0 auto 44px;
+    text-align: center;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 18px;
+  }
+  .eyebrow span {
+    display: inline-block;
+    width: 30px; height: 1px;
+    background: var(--accent);
+    vertical-align: middle;
+    margin: 0 12px;
+    opacity: 0.6;
+  }
+
+  h1.title {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.22;
+    letter-spacing: 0.04em;
+    margin: 0 0 18px;
+    color: var(--chrome-ink);
+  }
+  h1.title em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .subtitle {
+    color: var(--chrome-muted);
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 620px;
+    margin: 0 auto 26px;
+  }
+
+  .opt-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    max-width: 880px;
+    margin: 0 auto;
+    text-align: left;
+  }
+  .opt-card {
+    background: rgba(255, 255, 255, 0.74);
+    border: 1px solid rgba(26, 23, 20, 0.08);
+    border-radius: 16px;
+    padding: 18px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 6px 22px -16px rgba(26, 23, 20, 0.4);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .opt-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 30px -18px rgba(26, 23, 20, 0.45);
+  }
+  .opt-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .opt-head .num {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .opt-title { font-weight: 700; font-size: 15px; letter-spacing: 0.01em; }
+  .opt-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .opt-before, .opt-after {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 8px;
+    border-radius: 9px;
+    line-height: 1.35;
+  }
+  .opt-before {
+    background: rgba(138, 131, 120, 0.13);
+    color: var(--before);
+    text-decoration: line-through;
+    text-decoration-color: rgba(138, 131, 120, 0.5);
+  }
+  .opt-after {
+    background: rgba(211, 47, 47, 0.09);
+    color: var(--accent);
+  }
+  .opt-flow .arr {
+    flex: 0 0 auto;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  /* ───────────────────────── stage ───────────────────────── */
+  .stage {
+    display: flex;
+    gap: clamp(28px, 5vw, 72px);
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .panel-head { text-align: center; }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 5px 13px;
+    border-radius: 999px;
+  }
+  .tag.before {
+    color: var(--before);
+    background: rgba(138, 131, 120, 0.12);
+    border: 1px solid rgba(138, 131, 120, 0.28);
+  }
+  .tag.after {
+    color: #fff;
+    background: var(--after);
+    border: 1px solid var(--after);
+    box-shadow: 0 4px 14px rgba(192, 57, 43, 0.28);
+  }
+  .tag .ping {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+    animation: ping 1.8s ease-out infinite;
+  }
+  @keyframes ping {
+    0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6); }
+    70%, 100% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); }
+  }
+  .panel-cn {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 22px;
+    margin-top: 12px;
+  }
+  .panel-meta {
+    font-size: 13px;
+    color: var(--chrome-muted);
+    margin-top: 4px;
+  }
+  .panel-meta b { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  /* ───────────────────────── phone ───────────────────────── */
+  .phone {
+    width: 372px;
+    max-width: 86vw;
+    background: #0e0f12;
+    border-radius: 46px;
+    padding: 13px;
+    box-shadow:
+      0 1px 0 1px rgba(255, 255, 255, 0.04) inset,
+      0 40px 80px -28px rgba(26, 23, 20, 0.5),
+      0 16px 30px -18px rgba(26, 23, 20, 0.35);
+    position: relative;
+  }
+  .screen {
+    position: relative;
+    background: var(--card);
+    border-radius: 34px;
+    overflow: hidden;
+    height: 660px;
+    display: flex;
+    flex-direction: column;
+  }
+  .notch {
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 132px; height: 26px;
+    background: #0e0f12;
+    border-radius: 0 0 16px 16px;
+    z-index: 30;
+  }
+
+  /* app bar */
+  .app-bar {
+    flex: 0 0 auto;
+    padding: 38px 18px 12px;
+    border-bottom: 1px solid var(--divider);
+    background: var(--card);
+  }
+  .app-bar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .app-title {
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+  .app-actions { display: flex; gap: 6px; color: var(--gray-500); }
+  .icon-btn {
+    width: 34px; height: 34px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+  }
+  .icon-btn:hover { background: var(--hover); }
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: #f1f3f5;
+    border-radius: 11px;
+    padding: 9px 13px;
+    color: #9aa1a8;
+    font-size: 14px;
+  }
+  .search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    outline: none;
+    padding: 0;
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .search input::placeholder { color: #9aa1a8; }
+  .search .clear {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 18px; height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #cdd2d7;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .search .clear:hover { background: #b9bfc5; }
+  .search .clear.show { display: inline-flex; }
+
+  /* search-results header (after, server-side query) */
+  .results-head {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    padding: 9px 16px;
+    background: #fafbfc;
+    border-bottom: 1px solid var(--divider);
+    font-size: 12.5px;
+    color: var(--gray-500);
+  }
+  .results-head b { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  .empty-state {
+    padding: 54px 24px;
+    text-align: center;
+    color: #aab0b6;
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+  .empty-state svg {
+    width: 30px; height: 30px;
+    opacity: 0.5;
+    margin-bottom: 10px;
+  }
+
+  /* list viewport */
+  .viewport {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .viewport::-webkit-scrollbar { width: 7px; }
+  .viewport::-webkit-scrollbar-thumb {
+    background: rgba(26, 23, 20, 0.16);
+    border-radius: 99px;
+  }
+  .viewport::-webkit-scrollbar-track { background: transparent; }
+
+  /* conversation row — mirrors ConversationBox */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 16px;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s ease;
+  }
+  .row:hover { background: var(--hover); }
+  .row + .row::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 70px; right: 16px;
+    height: 1px;
+    background: var(--divider);
+  }
+
+  .avatar {
+    flex: 0 0 auto;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #fff;
+  }
+  .avatar svg { width: 23px; height: 23px; }
+
+  .row-main { flex: 1 1 auto; min-width: 0; }
+  .row-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row.read .name { font-weight: 500; color: var(--gray-700); }
+  .time {
+    flex: 0 0 auto;
+    font-size: 12.5px;
+    color: var(--gray-500);
+    font-variant-numeric: tabular-nums;
+  }
+  .row.unread .time { color: var(--red); font-weight: 600; }
+  .row-bottom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 3px;
+  }
+  .preview {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13.5px;
+    color: var(--gray-500);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row.read .preview { color: #9aa1a8; }
+
+  /* ── unread indicators ── */
+  /* BEFORE: numeric badge (current UnreadDot count mode) */
+  .badge {
+    flex: 0 0 auto;
+    min-width: 22px; height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--red);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 22px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  /* AFTER: red dot only */
+  .dot {
+    flex: 0 0 auto;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+
+  /* skeleton loader (after, while loading more) */
+  .skeleton { padding: 11px 16px; display: flex; align-items: center; gap: 14px; }
+  .sk-avatar { width: 44px; height: 44px; border-radius: 50%; }
+  .sk-lines { flex: 1; }
+  .sk-line { height: 11px; border-radius: 6px; margin: 5px 0; }
+  .sk-line.w1 { width: 42%; }
+  .sk-line.w2 { width: 76%; }
+  .shimmer {
+    background: linear-gradient(100deg, #eef0f2 30%, #f7f8fa 50%, #eef0f2 70%);
+    background-size: 200% 100%;
+    animation: shimmer 1.25s linear infinite;
+  }
+  @keyframes shimmer {
+    to { background-position: -200% 0; }
+  }
+
+  .loader-label {
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--gray-500);
+    padding: 6px 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+  }
+  .spin {
+    width: 14px; height: 14px;
+    border: 2px solid var(--divider);
+    border-top-color: var(--red);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* before: blocking circular progress while ALL rooms are fetched */
+  .circular-loading {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: var(--gray-500);
+    font-size: 13px;
+  }
+  .circular {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 3.5px solid #e7eaed;
+    border-top-color: var(--cat-case);
+    animation: spin 0.85s linear infinite;
+  }
+
+  .end-marker {
+    text-align: center;
+    font-size: 12px;
+    color: #aab0b6;
+    padding: 14px 0 22px;
+    letter-spacing: 0.04em;
+  }
+
+  /* annotation callout pinned to each panel */
+  .callout {
+    position: relative;
+    margin-top: 22px;
+    max-width: 340px;
+    background: var(--card);
+    border: 1px solid rgba(26, 23, 20, 0.08);
+    border-left: 3px solid var(--accent);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 10px 26px -16px rgba(26, 23, 20, 0.4);
+  }
+  .callout h4 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .callout .num {
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px; font-weight: 700;
+  }
+  .callout p { margin: 0; font-size: 13px; line-height: 1.65; color: var(--chrome-muted); }
+  .callout.muted { border-left-color: var(--before); }
+  .callout.muted .num { background: var(--before); }
+
+  /* toolbar */
+  .toolbar {
+    max-width: 920px;
+    margin: 0 auto 30px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+  .btn {
+    appearance: none;
+    border: 1px solid rgba(26, 23, 20, 0.14);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--chrome-ink);
+    font-family: var(--sans);
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 9px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+  .btn:hover { background: #fff; border-color: rgba(26, 23, 20, 0.26); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn .kbd { color: var(--accent); }
+
+  footer {
+    max-width: 760px;
+    margin: 72px auto 0;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--chrome-muted);
+    border-top: 1px solid rgba(26, 23, 20, 0.1);
+    padding-top: 26px;
+  }
+  footer code {
+    background: rgba(26, 23, 20, 0.06);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 12px;
+  }
+
+  @media (max-width: 820px) {
+    .stage { gap: 40px; }
+    .callout { max-width: 86vw; }
+    .opt-grid { grid-template-columns: 1fr; max-width: 420px; }
+  }
+</style>
+</head>
+<body>
+  <header class="page-header">
+    <div class="eyebrow">Chat&nbsp;List&nbsp;·&nbsp;Before&nbsp;/&nbsp;After</div>
+    <h1 class="title">聊天室列表<em>優化</em>對比</h1>
+    <p class="subtitle">
+      左右並排對照「現況」與「優化後」的聊天室列表。兩側使用同一份資料，
+      呈現三項相關優化的實際差異——右側面板可直接捲動體驗分批載入，搜尋框也可實際輸入。
+    </p>
+    <div class="opt-grid">
+      <div class="opt-card">
+        <div class="opt-head"><span class="num">1</span><span class="opt-title">未讀提醒</span></div>
+        <div class="opt-flow">
+          <span class="opt-before">數字徽章</span>
+          <span class="arr">→</span>
+          <span class="opt-after">純紅點（不計數）</span>
+        </div>
+      </div>
+      <div class="opt-card">
+        <div class="opt-head"><span class="num">2</span><span class="opt-title">清單載入</span></div>
+        <div class="opt-flow">
+          <span class="opt-before">一次全部載入</span>
+          <span class="arr">→</span>
+          <span class="opt-after">往下滑分批載入</span>
+        </div>
+      </div>
+      <div class="opt-card">
+        <div class="opt-head"><span class="num">3</span><span class="opt-title">搜尋方式</span></div>
+        <div class="opt-flow">
+          <span class="opt-before">前端即時過濾</span>
+          <span class="arr">→</span>
+          <span class="opt-after">後端查詢結果列表</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn" id="reset-btn">↺ 重設 Demo</button>
+    <button class="btn" id="scroll-btn">↧ 自動捲到底（看載入）</button>
+    <button class="btn" id="search-demo-btn">🔍 搜尋示範</button>
+  </div>
+
+  <div class="stage">
+    <!-- BEFORE -->
+    <section class="panel">
+      <div class="panel-head">
+        <span class="tag before">現況 · Before</span>
+        <div class="panel-cn">優化前</div>
+        <div class="panel-meta">一次渲染全部 <b id="before-count">0</b> 筆 · 未讀顯示數量</div>
+      </div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="app-bar">
+            <div class="app-bar-row">
+              <div class="app-title">聊天</div>
+              <div class="app-actions">
+                <span class="icon-btn" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </span>
+              </div>
+            </div>
+            <div class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input id="before-search" type="text" placeholder="搜尋聊天室（前端過濾）" autocomplete="off" />
+              <button class="clear" id="before-clear" type="button" aria-label="清除">×</button>
+            </div>
+          </div>
+          <div class="viewport" id="before-viewport"></div>
+        </div>
+      </div>
+      <div class="callout muted">
+        <h4><span class="num">!</span>現況的痛點</h4>
+        <p>進入頁面就把所有聊天室一次塞進清單（資料多時偏卡），未讀則用數字徽章——數字大時資訊雜訊高，使用者其實只在意「有沒有新訊息」。因為全部都在前端，搜尋是即時過濾現有清單。</p>
+      </div>
+    </section>
+
+    <!-- AFTER -->
+    <section class="panel">
+      <div class="panel-head">
+        <span class="tag after"><span class="ping"></span>優化後 · After</span>
+        <div class="panel-cn">優化後</div>
+        <div class="panel-meta">已載入 <b id="after-count">0</b> / <span id="after-total">0</span> 筆 · 未讀只用紅點</div>
+      </div>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="app-bar">
+            <div class="app-bar-row">
+              <div class="app-title">聊天</div>
+              <div class="app-actions">
+                <span class="icon-btn" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </span>
+              </div>
+            </div>
+            <div class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input id="after-search" type="text" placeholder="搜尋聊天室（後端查詢）" autocomplete="off" />
+              <button class="clear" id="after-clear" type="button" aria-label="清除">×</button>
+            </div>
+          </div>
+          <div class="viewport" id="after-viewport"></div>
+        </div>
+      </div>
+      <div class="callout">
+        <h4><span class="num">✓</span>優化後的好處</h4>
+        <p>初始只載入第一批，往下滑接近底部才分批載入下一批——首屏更輕快。未讀統一用紅點，一眼掃過就知道哪些聊天室有新訊息。</p>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    對應程式碼：聊天室列表 <code>ChatList</code> / <code>ConversationBox</code>，未讀元件 <code>UnreadDot</code>
+    （傳入非數字即為紅點模式）。此為靜態示意 Demo，資料為模擬產生，不連接後端。
+  </footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── deterministic RNG so both panels share identical data ── */
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  var CATEGORIES = {
+    case:  { color: "var(--cat-case)",  icon: "person" },
+    staff: { color: "var(--cat-staff)", icon: "person" },
+    group: { color: "var(--cat-group)", icon: "group" },
+    ai:    { color: "var(--cat-ai)",    icon: "bot" },
+  };
+
+  var ICONS = {
+    person: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>',
+    group:  '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M2.5 19c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5"/><path d="M16 14.2c2.7.2 5 1.7 5 4.8"/></svg>',
+    bot:    '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="8" width="14" height="10" rx="3"/><circle cx="9.5" cy="13" r="1.3" fill="#fff"/><circle cx="14.5" cy="13" r="1.3" fill="#fff"/><path d="M12 4v3M8 18v2M16 18v2"/></svg>',
+  };
+
+  var NAMES = [
+    ["王小明","case"],["陳美玲","case"],["林志豪","case"],["張雅婷","case"],
+    ["李建宏","case"],["黃淑芬","case"],["吳俊傑","case"],["劉怡君","case"],
+    ["蔡明翰","case"],["鄭佳穎","case"],["許文德","case"],["謝宜蓁","case"],
+    ["心臟科照護小組","group"],["糖尿病衛教群組","group"],["居家護理 A 區","group"],
+    ["營養諮詢線上群","group"],["復健追蹤群組","group"],
+    ["護理師 林佳慧","staff"],["個管師 周冠廷","staff"],["藥師 趙婉婷","staff"],
+    ["社工 楊宗翰","staff"],["醫師 陳柏年","staff"],["跟診助理 葉佩珊","staff"],
+    ["AI 衛教助理","ai"],["AI 預約小幫手","ai"],
+    ["洪志明","case"],["周淑惠","case"],["曾國強","case"],["呂佳蓉","case"],
+    ["蘇建良","case"],["范婷婷","case"],["江俊宏","case"],["馬曉雯","case"],
+    ["高志偉","case"],["賴美珠","case"],["顏世昌","case"],["邱淑娟","case"],
+    ["孕產照護群組","group"],["長照個案討論群","group"],
+    ["護理師 何宜靜","staff"],["個管師 莊承恩","staff"],
+    ["孫立群","case"],["白思涵","case"],["金敏鎬","case"],["田心怡","case"],
+    ["盧建成","case"],["唐美雪","case"],["龔志強","case"],["施雅文","case"],
+    ["夜間值班群組","group"],["AI 用藥提醒","ai"],
+    ["方建勳","case"],["溫淑芳","case"],
+  ];
+
+  var MESSAGES = [
+    "請問下週回診時間可以改嗎？","已上傳最新的血壓紀錄給您","好的，謝謝醫師 🙏",
+    "報告出來了嗎？有點擔心","這兩天有點頭暈，需要回診嗎","藥還剩三天份，要先預約嗎？",
+    "預約已確認：6/10（三）14:00","記得明天空腹抽血唷","收到，我會轉達給醫師",
+    "傷口照片附上，麻煩看一下","體溫今天 37.8，要注意嗎","謝謝你們的協助，辛苦了",
+    "[圖片]","[語音訊息 0:12]","已完成今日血糖量測：飯後 142","下午門診人多嗎？想避開尖峰",
+    "媽媽今天精神比較好了","量血壓的姿勢這樣對嗎？","衛教單我看完了，沒問題",
+    "這個劑量會不會太重？","復健做完了，膝蓋還是會痛","我改成週四下午可以嗎？",
+    "已幫您排好下次的居家訪視","小提醒：記得今晚 9 點服藥","新的檢驗報告已同步至系統",
+  ];
+
+  var TIMES = [
+    "剛剛","2 分鐘前","11 分鐘前","32 分鐘前","上午 09:14","上午 10:42",
+    "中午 12:05","下午 14:38","下午 16:20","昨天","昨天 20:11","週一",
+    "週日","5/28","5/26","5/21",
+  ];
+
+  /* ── build the shared dataset ── */
+  function buildData(seed) {
+    var rng = mulberry32(seed);
+    return NAMES.map(function (entry, i) {
+      var unread = rng() < 0.42;
+      // skew counts so we see small numbers, big numbers and the 99+ cap
+      var raw = Math.floor(rng() * rng() * 180) + 1;
+      return {
+        id: i,
+        name: entry[0],
+        category: entry[1],
+        message: MESSAGES[Math.floor(rng() * MESSAGES.length)],
+        time: TIMES[Math.min(TIMES.length - 1, Math.floor((i / NAMES.length) * TIMES.length + rng() * 2))],
+        unread: unread,
+        count: unread ? raw : 0,
+      };
+    });
+  }
+
+  function avatarHTML(cat) {
+    var c = CATEGORIES[cat] || CATEGORIES.case;
+    return '<div class="avatar" style="background:' + c.color + '">' + ICONS[c.icon] + "</div>";
+  }
+
+  function escapeHTML(s) {
+    return String(s).replace(/[&<>]/g, function (m) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m];
+    });
+  }
+
+  function debounce(fn, ms) {
+    var t;
+    return function () {
+      var ctx = this, args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(ctx, args); }, ms);
+    };
+  }
+
+  /* name + last-message text match (case-insensitive) */
+  function matches(q) {
+    return function (c) {
+      return (
+        c.name.toLowerCase().indexOf(q) >= 0 ||
+        c.message.toLowerCase().indexOf(q) >= 0
+      );
+    };
+  }
+
+  function emptyState(msg) {
+    return (
+      '<div class="empty-state">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>' +
+        "<div>" + escapeHTML(msg) + "</div>" +
+      "</div>"
+    );
+  }
+
+  /* skeleton placeholder rows — replaces the old spinner loader */
+  function skeletonRows(n) {
+    var one =
+      '<div class="skeleton">' +
+        '<div class="sk-avatar shimmer"></div>' +
+        '<div class="sk-lines">' +
+          '<div class="sk-line w1 shimmer"></div>' +
+          '<div class="sk-line w2 shimmer"></div>' +
+        "</div>" +
+      "</div>";
+    return new Array(n).fill(one).join("");
+  }
+
+  function toggleClear(btn, value) {
+    btn.classList.toggle("show", !!value.trim());
+  }
+
+  /* indicator differs per mode: 'badge' (before) vs 'dot' (after) */
+  function rowHTML(conv, mode) {
+    var indicator = "";
+    if (conv.unread) {
+      indicator =
+        mode === "badge"
+          ? '<span class="badge">' + (conv.count > 99 ? "99+" : conv.count) + "</span>"
+          : '<span class="dot"></span>';
+    }
+    return (
+      '<div class="row ' + (conv.unread ? "unread" : "read") + '" data-id="' + conv.id + '">' +
+        avatarHTML(conv.category) +
+        '<div class="row-main">' +
+          '<div class="row-top">' +
+            '<span class="name">' + escapeHTML(conv.name) + "</span>" +
+            '<span class="time">' + conv.time + "</span>" +
+          "</div>" +
+          '<div class="row-bottom">' +
+            '<span class="preview">' + escapeHTML(conv.message) + "</span>" +
+            indicator +
+          "</div>" +
+        "</div>" +
+      "</div>"
+    );
+  }
+
+  /* clicking a row marks it read — works in both panels */
+  function wireRowClicks(viewport) {
+    viewport.addEventListener("click", function (e) {
+      var row = e.target.closest(".row");
+      if (!row || !row.classList.contains("unread")) return;
+      row.classList.remove("unread");
+      row.classList.add("read");
+      var ind = row.querySelector(".badge, .dot");
+      if (ind) ind.remove();
+    });
+  }
+
+  /* ───────────────── BEFORE: render everything at once ───────────────── */
+  var beforeViewport = document.getElementById("before-viewport");
+  var beforeSearch = document.getElementById("before-search");
+  var beforeClear = document.getElementById("before-clear");
+  var beforeData = [];
+  var beforeLoadTimer = null;
+
+  function renderBeforeList(list) {
+    beforeViewport.innerHTML = list.length
+      ? list.map(function (c) { return rowHTML(c, "badge"); }).join("")
+      : emptyState("找不到符合的聊天室");
+  }
+
+  function renderBefore(data) {
+    beforeData = data;
+    document.getElementById("before-count").textContent = data.length;
+    beforeSearch.value = "";
+    toggleClear(beforeClear, "");
+    // current behaviour: blocking circular progress until ALL rooms are fetched
+    beforeViewport.innerHTML =
+      '<div class="circular-loading"><div class="circular"></div><div>載入聊天室…</div></div>';
+    clearTimeout(beforeLoadTimer);
+    beforeLoadTimer = setTimeout(function () {
+      renderBeforeList(beforeData);
+    }, 1200); // current: blocking wait for the WHOLE list
+  }
+
+  /* current behaviour: filter the already-loaded list on the client, instantly */
+  beforeSearch.addEventListener("input", function () {
+    clearTimeout(beforeLoadTimer); // a search overrides the initial load
+    toggleClear(beforeClear, this.value);
+    var q = this.value.trim().toLowerCase();
+    renderBeforeList(q ? beforeData.filter(matches(q)) : beforeData);
+  });
+  beforeClear.addEventListener("click", function () {
+    beforeSearch.value = "";
+    toggleClear(beforeClear, "");
+    renderBeforeList(beforeData);
+    beforeSearch.focus();
+  });
+
+  /* ───────────────── AFTER: paginated + server-side search ───────────────── */
+  var afterViewport = document.getElementById("after-viewport");
+  var afterSearch = document.getElementById("after-search");
+  var afterClear = document.getElementById("after-clear");
+  var PAGE = 8;
+  var FIRST = 12; // first batch must overflow the viewport so it's scrollable
+
+  var after = { data: [], loaded: 0, loading: false, searching: false };
+  var afterInitTimer = null;
+
+  function afterHasMore() { return after.loaded < after.data.length; }
+
+  function updateAfterMeta() {
+    document.getElementById("after-count").textContent = after.loaded;
+    document.getElementById("after-total").textContent = after.data.length;
+  }
+
+  function renderAfterRows() {
+    afterViewport.innerHTML = after.data
+      .slice(0, after.loaded)
+      .map(function (c) { return rowHTML(c, "dot"); })
+      .join("");
+    if (!afterHasMore()) {
+      var end = document.createElement("div");
+      end.className = "end-marker";
+      end.textContent = "· 沒有更多聊天室了 ·";
+      afterViewport.appendChild(end);
+    }
+    updateAfterMeta();
+  }
+
+  function loadMoreAfter() {
+    if (after.loading || after.searching || !afterHasMore()) return;
+    after.loading = true;
+    var sk = document.createElement("div");
+    sk.id = "after-skeleton";
+    sk.innerHTML = skeletonRows(3); // skeleton placeholder while loading
+    afterViewport.appendChild(sk);
+    afterViewport.scrollTop = afterViewport.scrollHeight; // keep skeleton in view
+
+    setTimeout(function () {
+      after.loaded = Math.min(after.loaded + PAGE, after.data.length);
+      after.loading = false;
+      renderAfterRows();
+    }, 600); // optimised: one small batch → skeleton stays visible, still faster than loading all
+  }
+
+  afterViewport.addEventListener("scroll", function () {
+    if (after.searching) return;
+    if (
+      afterViewport.scrollTop + afterViewport.clientHeight >=
+      afterViewport.scrollHeight - 70
+    ) {
+      loadMoreAfter();
+    }
+  });
+
+  /* optimised behaviour: only part of the list is loaded, so search must hit the
+     backend and return a dedicated results list (simulated here with a delay) */
+  var runAfterSearch = debounce(function (q) {
+    if (afterSearch.value.trim().toLowerCase() !== q) return; // stale query, skip
+    var res = after.data.filter(matches(q));
+    var head = '<div class="results-head">搜尋結果 · <b>' + res.length + "</b> 筆</div>";
+    afterViewport.innerHTML =
+      head +
+      (res.length
+        ? res.map(function (c) { return rowHTML(c, "dot"); }).join("")
+        : emptyState("找不到「" + afterSearch.value.trim() + "」相關的聊天室"));
+  }, 450); // optimised: quick server response (skeleton stays briefly visible)
+
+  afterSearch.addEventListener("input", function () {
+    toggleClear(afterClear, this.value);
+    var q = this.value.trim().toLowerCase();
+    if (!q) {
+      after.searching = false;
+      renderAfterRows();
+      return;
+    }
+    after.searching = true;
+    afterViewport.scrollTop = 0;
+    afterViewport.innerHTML =
+      '<div class="results-head">搜尋中…</div>' + skeletonRows(4);
+    runAfterSearch(q);
+  });
+  afterClear.addEventListener("click", function () {
+    afterSearch.value = "";
+    toggleClear(afterClear, "");
+    after.searching = false;
+    renderAfterRows();
+    afterSearch.focus();
+  });
+
+  function renderAfter(data) {
+    after.data = data;
+    after.loaded = Math.min(FIRST, data.length);
+    after.searching = false;
+    after.loading = true; // block scroll-loads during the initial skeleton
+    afterSearch.value = "";
+    toggleClear(afterClear, "");
+    afterViewport.scrollTop = 0;
+    // optimised: the FIRST load also shows skeleton (vs current circular spinner)
+    afterViewport.innerHTML = skeletonRows(8);
+    clearTimeout(afterInitTimer);
+    afterInitTimer = setTimeout(function () {
+      after.loading = false;
+      renderAfterRows();
+    }, 650);
+  }
+
+  /* ───────────────── boot ───────────────── */
+  wireRowClicks(beforeViewport);
+  wireRowClicks(afterViewport);
+
+  var seed = 20260604;
+
+  function boot() {
+    var data = buildData(seed);
+    renderBefore(data);
+    // give After its own cloned objects so marking-read is independent per panel
+    renderAfter(data.map(function (c) { return Object.assign({}, c); }));
+  }
+
+  document.getElementById("reset-btn").addEventListener("click", function () {
+    seed = (seed + 7919) >>> 0; // fresh seed → both panels visibly refresh
+    boot();
+  });
+
+  document.getElementById("scroll-btn").addEventListener("click", function () {
+    if (after.searching) return;
+    // smooth auto-scroll to bottom to demonstrate progressive loading
+    var step = function () {
+      afterViewport.scrollTop = afterViewport.scrollHeight;
+      if (afterHasMore() || after.loading) setTimeout(step, 780);
+    };
+    step();
+  });
+
+  document.getElementById("search-demo-btn").addEventListener("click", function () {
+    var examples = ["群組", "護理", "預約", "個管", "回診"];
+    var q = examples[Math.floor(Math.random() * examples.length)];
+    [beforeSearch, afterSearch].forEach(function (el) {
+      el.value = q;
+      el.dispatchEvent(new Event("input"));
+    });
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
